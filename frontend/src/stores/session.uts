@@ -1,0 +1,71 @@
+import { ref } from "vue"
+
+export type SessionUser = {
+  id: string
+  display_name: string
+}
+
+type RequestError = {
+  code?: string
+}
+
+type SessionOptions = {
+  navigateTo?: (url: string) => void
+}
+
+export type SessionStore = {
+  authenticated: boolean
+  user: SessionUser | null
+  setAuthenticated: (value: boolean) => void
+  restoreSession: (value: SessionUser | null) => void
+  setSession: (value: SessionUser) => void
+  clearSession: () => void
+  handleRequestError: (error: RequestError) => void
+}
+
+export function createSessionStore(options: SessionOptions = {}): SessionStore {
+  const authenticatedRef = ref(false)
+  const userRef = ref<SessionUser | null>(null)
+  const navigateTo = options.navigateTo || (() => {})
+
+  const store: SessionStore = {
+    get authenticated(): boolean {
+      return authenticatedRef.value
+    },
+    get user(): SessionUser | null {
+      return userRef.value
+    },
+    setAuthenticated(value: boolean): void {
+      authenticatedRef.value = value
+      if (!value) userRef.value = null
+    },
+    restoreSession(value: SessionUser | null): void {
+      if (value === null) {
+        store.clearSession()
+        return
+      }
+      store.setSession(value)
+    },
+    setSession(value: SessionUser): void {
+      userRef.value = value
+      authenticatedRef.value = true
+    },
+    clearSession(): void {
+      userRef.value = null
+      authenticatedRef.value = false
+    },
+    handleRequestError(error: RequestError): void {
+      if (error.code !== "session_expired") return
+      store.clearSession()
+      navigateTo("/pages/login/login")
+    },
+  }
+
+  return store
+}
+
+export const sessionStore = createSessionStore({
+  navigateTo: (url: string): void => {
+    uni.navigateTo({ url })
+  },
+})

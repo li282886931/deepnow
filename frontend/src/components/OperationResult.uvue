@@ -1,0 +1,23 @@
+<template>
+  <view v-if="message" class="result" :class="'result-' + tone">
+    <text>{{ message }}</text>
+  </view>
+</template>
+
+<script setup lang="uts">
+defineProps<{
+  message: string
+  tone?: "success" | "error" | "info"
+}>()
+</script>
+
+<style>
+.result {
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.result-success { color: #147d55; background-color: #ecfdf3; }
+.result-error { color: #b42318; background-color: #fef3f2; }
+.result-info { color: #175cd3; background-color: #eff8ff; }
+</style>

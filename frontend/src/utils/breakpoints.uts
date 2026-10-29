@@ -1,0 +1,15 @@
+export type Breakpoint = "desktop" | "tablet" | "mobile"
+export type NavigationMode = "sidebar" | "compact-sidebar" | "bottom-tabbar"
+
+export function breakpointForWidth(width: number): Breakpoint {
+  if (width >= 1200) return "desktop"
+  if (width >= 768) return "tablet"
+  return "mobile"
+}
+
+export function navigationModeForWidth(width: number): NavigationMode {
+  const breakpoint = breakpointForWidth(width)
+  if (breakpoint === "desktop") return "sidebar"
+  if (breakpoint === "tablet") return "compact-sidebar"
+  return "bottom-tabbar"
+}

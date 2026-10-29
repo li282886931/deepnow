@@ -1,0 +1,71 @@
+<template>
+  <AppShell title="操作审计">
+    <view class="page">
+      <view class="page-heading">
+        <view>
+          <text class="eyebrow">AUDIT EVENTS</text>
+          <text class="heading">操作审计</text>
+          <text class="description">只读查看管理员登录、配置和资源变更记录。</text>
+        </view>
+        <button class="secondary" :disabled="loading" @click="load">刷新</button>
+      </view>
+      <ErrorState v-if="errorMessage && events.length === 0" title="审计记录加载失败" :message="errorMessage" :retry="load" />
+      <OperationResult v-else-if="errorMessage" :message="errorMessage" tone="info" />
+      <EmptyState v-if="events.length === 0 && !loading && !errorMessage" title="暂无审计记录" description="系统产生操作记录后会显示在这里。" />
+      <view v-else class="event-list">
+        <view v-for="event in events" :key="event.id" class="event-row">
+          <view class="event-main">
+            <text class="event-action">{{ event.action }}</text>
+            <text class="event-meta">{{ event.actor }} · {{ event.resource_type }} {{ event.resource_id }}</text>
+          </view>
+          <StatusBadge :label="event.result === 'success' ? '成功' : '失败'" :tone="event.result === 'success' ? 'success' : 'error'" />
+          <text class="event-time">{{ formatTimestamp(event.created_at) }}</text>
+        </view>
+      </view>
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { onMounted, ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import EmptyState from "../../components/EmptyState.uvue"
+import ErrorState from "../../components/ErrorState.uvue"
+import OperationResult from "../../components/OperationResult.uvue"
+import StatusBadge from "../../components/StatusBadge.uvue"
+import { listAuditEvents } from "../../services/audit.uts"
+import type { AuditEvent } from "../../types/domain.uts"
+import { formatTimestamp } from "../../utils/format.uts"
+
+const events = ref<AuditEvent[]>([])
+const loading = ref(true)
+const errorMessage = ref("")
+
+async function load(): Promise<void> {
+  loading.value = true
+  errorMessage.value = ""
+  try { events.value = await listAuditEvents() }
+  catch (error) { errorMessage.value = error instanceof Error ? error.message : "无法读取审计记录" }
+  finally { loading.value = false }
+}
+
+onMounted(load)
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+button { height: 34px; line-height: 34px; margin: 7px 0 0; padding: 0 13px; font-size: 12px; border-radius: 4px; }
+.secondary { color: #344054; background-color: #fff; border: 1px solid #d0d5dd; }
+.event-list { margin-top: 24px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; }
+.event-row { flex-direction: row; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid #f2f4f7; }
+.event-row:last-child { border-bottom-width: 0; }
+.event-main { flex: 1; min-width: 0; }
+.event-action { display: block; color: #344054; font-size: 13px; font-weight: 600; }
+.event-meta, .event-time { display: block; color: #667085; font-size: 12px; margin-top: 5px; }
+.event-time { width: 150px; text-align: right; margin-top: 0; }
+@media (max-width: 767px) { .page { padding: 20px 16px 30px; } .event-row { flex-wrap: wrap; } .event-main { width: calc(100% - 35px); flex: none; } .event-time { width: 100%; text-align: left; margin-left: 0; } }
+</style>

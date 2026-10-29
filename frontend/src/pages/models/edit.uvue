@@ -1,0 +1,69 @@
+<template>
+  <AppShell title="编辑模型">
+    <view class="page">
+      <view class="page-heading">
+        <text class="eyebrow">MODEL CONFIGURATION</text>
+        <text class="heading">配置模型</text>
+        <text class="description">保存配置和测试连接是两个独立操作，测试不会自动启用模型。</text>
+      </view>
+      <OperationResult :message="resultMessage" :tone="resultTone" />
+      <ConfigForm :busy="busy" :validation-message="validationMessage" @save="save" @test="test" />
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import ConfigForm from "../../components/ConfigForm.uvue"
+import OperationResult from "../../components/OperationResult.uvue"
+import { saveModel, testModel } from "../../services/models.uts"
+import type { ModelConfigInput } from "../../types/domain.uts"
+
+const busy = ref(false)
+const validationMessage = ref("")
+const resultMessage = ref("")
+const resultTone = ref<"success" | "error" | "info">("info")
+
+async function save(input: ModelConfigInput): Promise<void> {
+  busy.value = true
+  validationMessage.value = ""
+  resultMessage.value = ""
+  try {
+    await saveModel(input)
+    resultMessage.value = "模型配置已保存"
+    resultTone.value = "success"
+    setTimeout(() => uni.navigateTo({ url: "/pages/models/models" }), 500)
+  } catch (error) {
+    resultMessage.value = error instanceof Error ? error.message : "保存失败，请稍后重试"
+    resultTone.value = "error"
+  } finally {
+    busy.value = false
+  }
+}
+
+async function test(input: ModelConfigInput): Promise<void> {
+  busy.value = true
+  validationMessage.value = ""
+  resultMessage.value = ""
+  try {
+    await testModel(input)
+    resultMessage.value = "模型连接成功"
+    resultTone.value = "success"
+  } catch (error) {
+    resultMessage.value = error instanceof Error ? error.message : "模型连接失败"
+    resultTone.value = "error"
+  } finally {
+    busy.value = false
+  }
+}
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { margin-bottom: 20px; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+@media (max-width: 767px) { .page { padding: 20px 16px 30px; } }
+</style>

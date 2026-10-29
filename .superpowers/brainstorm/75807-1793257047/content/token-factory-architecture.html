@@ -1,0 +1,66 @@
+<h2>Token 工厂：推荐架构</h2>
+<p class="subtitle">当前 DeepNow 作为网关与管理控制台，Token 治理能力先以内聚模块落地，再通过适配器扩展 Vault、KMS、消息队列和外部审批。</p>
+
+<div class="mockup">
+  <div class="mockup-header">推荐方案：模块化单体 + 事件驱动治理</div>
+  <div class="mockup-body">
+    <div style="display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:12px;align-items:stretch">
+      <div style="border:1px solid #9ca3af;padding:14px;background:#f8fafc">
+        <div class="label">入口层</div>
+        <div class="mock-button" style="margin:8px 0">uni-app x 管理控制台</div>
+        <div class="mock-button" style="margin:8px 0">OpenAPI / SDK / CLI</div>
+        <div class="mock-button" style="margin:8px 0">DeepNow Gateway</div>
+      </div>
+      <div style="border:2px solid #2563eb;padding:14px;background:#eff6ff">
+        <div class="label">DeepNow Token Factory Core</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+          <div class="placeholder" style="padding:10px">Application Service</div>
+          <div class="placeholder" style="padding:10px">Token Issuer</div>
+          <div class="placeholder" style="padding:10px">Policy Engine</div>
+          <div class="placeholder" style="padding:10px">Approval Workflow</div>
+          <div class="placeholder" style="padding:10px">Validation + Quota</div>
+          <div class="placeholder" style="padding:10px">Audit + Risk</div>
+        </div>
+      </div>
+      <div style="border:1px solid #9ca3af;padding:14px;background:#f8fafc">
+        <div class="label">基础设施适配器</div>
+        <div class="mock-button" style="margin:8px 0">SQLite / PostgreSQL</div>
+        <div class="mock-button" style="margin:8px 0">Vault / KMS</div>
+        <div class="mock-button" style="margin:8px 0">Redis / Event Bus</div>
+        <div class="mock-button" style="margin:8px 0">通知 / 安全平台</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;border-top:1px solid #d1d5db;padding-top:12px;text-align:center;color:#475569">
+      同步路径：申请 → 策略评估 → 审批 → 签发 → 一次性展示
+      <br />
+      异步路径：使用日志 → 用量聚合 → 风险评分 → 通知 / 限流 / 冻结 / 吊销
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>首期落地边界</h3>
+  <div class="options">
+    <div class="option" data-choice="modular-monolith" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>模块化单体（推荐）</h3>
+        <p>复用当前 Go 网关、SQLite 和 uni-app x 控制台，先交付可运行 MVP；Vault/KMS、消息队列通过接口隔离。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="microservices" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>立即拆微服务</h3>
+        <p>直接拆 Issuer、Policy、Approval、Risk 等服务，边界清晰，但当前项目会承担较大的部署和联调成本。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="standalone-service" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>独立 Token 服务</h3>
+        <p>Token 工厂与 DeepNow 完全独立，通过 Gateway Adapter 接入；适合长期平台化，但首期交付链路最长。</p>
+      </div>
+    </div>
+  </div>
+</div>

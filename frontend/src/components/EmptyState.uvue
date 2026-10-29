@@ -1,0 +1,23 @@
+<template>
+  <view class="state">
+    <text class="state-title">{{ title }}</text>
+    <text v-if="description" class="state-description">{{ description }}</text>
+  </view>
+</template>
+
+<script setup lang="uts">
+defineProps<{
+  title: string
+  description?: string
+}>()
+</script>
+
+<style>
+.state {
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+.state-title { color: #344054; font-size: 15px; font-weight: 600; }
+.state-description { color: #667085; font-size: 13px; margin-top: 8px; }
+</style>

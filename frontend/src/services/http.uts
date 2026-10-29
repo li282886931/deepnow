@@ -1,0 +1,82 @@
+import type { ApiEnvelope, RequestOptions } from "../types/api.uts"
+import { ConsoleError, errorCodeForStatus } from "../utils/errors.uts"
+
+type UnauthorizedHandler = () => void
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ""
+let unauthorizedHandler: UnauthorizedHandler | undefined
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | undefined): void {
+  unauthorizedHandler = handler
+}
+
+function requestUrl(path: string): string {
+  if (/^https?:\/\//.test(path)) return path
+  return `${API_BASE_URL}${path}`
+}
+
+async function readJson(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    const value: unknown = await response.json()
+    if (typeof value === "object" && value !== null) {
+      return value as Record<string, unknown>
+    }
+  } catch (_) {
+    // The caller receives a typed error for non-JSON responses.
+  }
+  return null
+}
+
+function messageFrom(payload: Record<string, unknown> | null, fallback: string): string {
+  return typeof payload?.message === "string" && payload.message.length > 0
+    ? payload.message
+    : fallback
+}
+
+export async function request<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<ApiEnvelope<T>> {
+  let response: Response
+  try {
+    response = await fetch(requestUrl(path), {
+      method: options.method || "GET",
+      headers: options.headers,
+      body: options.body,
+      signal: options.signal,
+      credentials: "include",
+    })
+  } catch (_) {
+    throw new ConsoleError("network", "网络请求失败")
+  }
+
+  const payload = await readJson(response)
+  const requestId = typeof payload?.request_id === "string" ? payload.request_id : ""
+
+  if (response.status === 401) {
+    unauthorizedHandler?.()
+    throw new ConsoleError("session_expired", "会话已过期", 401, requestId)
+  }
+
+  if (!response.ok || payload?.success !== true) {
+    const code = errorCodeForStatus(response.status)
+    throw new ConsoleError(
+      code,
+      messageFrom(payload, "请求失败"),
+      response.status,
+      requestId,
+    )
+  }
+
+  return payload as unknown as ApiEnvelope<T>
+}
+
+export async function upload<T>(
+  path: string,
+  file: File,
+  fieldName = "file",
+): Promise<ApiEnvelope<T>> {
+  const body = new FormData()
+  body.append(fieldName, file)
+  return request<T>(path, { method: "POST", body })
+}

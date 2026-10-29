@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	errMissingMySQLDSN  = errors.New("TOKEN_FACTORY_MYSQL_DSN is required")
+	errMissingMySQLDSN = errors.New("TOKEN_FACTORY_MYSQL_DSN is required")
 	errMissingSecretKey = errors.New("TOKEN_FACTORY_SECRET_KEY is required")
 )
 

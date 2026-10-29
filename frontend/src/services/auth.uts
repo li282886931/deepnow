@@ -1,0 +1,26 @@
+import { request } from "./http.uts"
+import type { ApiEnvelope } from "../types/api.uts"
+import type { SessionUser } from "../stores/session.uts"
+
+export type LoginInput = {
+  username: string
+  password: string
+}
+
+export async function login(input: LoginInput): Promise<ApiEnvelope<SessionUser>> {
+  const form = `username=${encodeURIComponent(input.username)}&password=${encodeURIComponent(input.password)}`
+  await request<null>("/api/login", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: form,
+  })
+  return getSession()
+}
+
+export function logout(): Promise<ApiEnvelope<null>> {
+  return request<null>("/api/logout", { method: "POST" })
+}
+
+export function getSession(): Promise<ApiEnvelope<SessionUser>> {
+  return request<SessionUser>("/api/session")
+}

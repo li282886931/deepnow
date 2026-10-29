@@ -1,0 +1,195 @@
+<template>
+  <AppShell title="知识库">
+    <view class="page">
+      <view class="page-heading">
+        <view>
+          <text class="eyebrow">KNOWLEDGE BASE</text>
+          <text class="heading">知识库管理</text>
+          <text class="description">上传、查看和维护用于检索的文档索引。</text>
+        </view>
+        <view class="heading-actions">
+          <button class="secondary" :disabled="loading || busy" @click="load">刷新</button>
+          <button class="secondary" :disabled="busy" @click="openRetrieval">检索测试</button>
+          <button class="primary" :disabled="busy" @click="chooseDocument">上传文档</button>
+        </view>
+      </view>
+
+      <OperationResult :message="message" :tone="messageTone" />
+      <ErrorState v-if="errorMessage && documents.length === 0" title="知识库加载失败" :message="errorMessage" :retry="load" />
+
+      <view class="metrics">
+        <view class="metric"><text>文档数</text><text>{{ status.total_files }}</text></view>
+        <view class="metric"><text>索引切片</text><text>{{ status.total_chunks }}</text></view>
+        <view class="metric"><text>最近更新</text><text>{{ status.last_update || "未记录" }}</text></view>
+      </view>
+
+      <OperationResult v-if="errorMessage && documents.length > 0" :message="errorMessage" tone="info" />
+      <view v-if="documents.length === 0 && !loading" class="empty-card">
+        <text>暂无知识库文档</text>
+        <text class="empty-caption">上传 TXT、Markdown 或其他文本文件后开始建立索引。</text>
+      </view>
+      <view v-else class="document-list">
+        <view v-for="document in documents" :key="document.id" class="document-row">
+          <view class="document-main">
+            <text class="document-name">{{ document.filename }}</text>
+            <text class="document-meta">{{ formatBytes(document.size) }} · {{ document.chunk_count }} 个切片 · {{ formatTimestamp(document.created_at) }}</text>
+            <text v-if="document.error" class="document-error">{{ document.error }}</text>
+          </view>
+          <StatusBadge
+            :label="formatDocumentStatus(document.status).label"
+            :tone="formatDocumentStatus(document.status).tone"
+          />
+          <button class="row-action" :disabled="busy" @click="askDelete(document.id)">删除</button>
+        </view>
+      </view>
+
+      <ConfirmDialog
+        :visible="confirmDelete"
+        title="删除知识库文档"
+        message="确定删除这个文档及其索引？删除后无法恢复。"
+        @cancel="confirmDelete = false"
+        @confirm="deleteDocument"
+      />
+      <input class="file-input" type="file" @change="onFileChange" />
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { onMounted, reactive, ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import ConfirmDialog from "../../components/ConfirmDialog.uvue"
+import ErrorState from "../../components/ErrorState.uvue"
+import OperationResult from "../../components/OperationResult.uvue"
+import StatusBadge from "../../components/StatusBadge.uvue"
+import {
+  deleteKnowledgeDocument,
+  formatDocumentStatus,
+  getKnowledgeDocuments,
+  getKnowledgeStatus,
+  uploadKnowledgeDocument,
+} from "../../services/knowledge.uts"
+import type { KnowledgeDocument, KnowledgeStatus } from "../../types/domain.uts"
+import { formatTimestamp } from "../../utils/format.uts"
+
+const documents = ref<KnowledgeDocument[]>([])
+const status = reactive<KnowledgeStatus>({ total_chunks: 0, total_files: 0, last_update: "" })
+const loading = ref(true)
+const busy = ref(false)
+const confirmDelete = ref(false)
+const deletingID = ref(0)
+const errorMessage = ref("")
+const message = ref("")
+const messageTone = ref<"success" | "error" | "info">("info")
+
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+async function load(): Promise<void> {
+  loading.value = true
+  errorMessage.value = ""
+  try {
+    const [nextStatus, nextDocuments] = await Promise.all([getKnowledgeStatus(), getKnowledgeDocuments()])
+    status.total_chunks = nextStatus.total_chunks
+    status.total_files = nextStatus.total_files
+    status.last_update = nextStatus.last_update
+    documents.value = nextDocuments
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "无法读取知识库"
+  } finally {
+    loading.value = false
+  }
+}
+
+function openRetrieval(): void {
+  uni.navigateTo({ url: "/pages/knowledge/retrieval" })
+}
+
+function chooseDocument(): void {
+  const input = document.querySelector(".file-input") as HTMLInputElement | null
+  input?.click()
+}
+
+async function onFileChange(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.item(0)
+  if (!file) return
+  busy.value = true
+  message.value = ""
+  try {
+    await uploadKnowledgeDocument(file)
+    message.value = "文档已上传并完成处理"
+    messageTone.value = "success"
+    await load()
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : "文档上传失败"
+    messageTone.value = "error"
+  } finally {
+    busy.value = false
+    input.value = ""
+  }
+}
+
+function askDelete(id: number): void {
+  deletingID.value = id
+  confirmDelete.value = true
+}
+
+async function deleteDocument(): Promise<void> {
+  confirmDelete.value = false
+  busy.value = true
+  try {
+    await deleteKnowledgeDocument(deletingID.value)
+    message.value = "文档已删除"
+    messageTone.value = "success"
+    await load()
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : "文档删除失败"
+    messageTone.value = "error"
+  } finally {
+    busy.value = false
+  }
+}
+
+onMounted(load)
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+.heading-actions { flex-direction: row; gap: 8px; margin-left: 16px; }
+button { height: 34px; line-height: 34px; margin: 7px 0 0; padding: 0 13px; font-size: 12px; border-radius: 4px; }
+.primary { color: #fff; background-color: #175cd3; }
+.secondary { color: #344054; background-color: #fff; border: 1px solid #d0d5dd; }
+.metrics { flex-direction: row; gap: 10px; margin-top: 24px; }
+.metric { flex: 1; padding: 15px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; }
+.metric text { display: block; }
+.metric text:first-child { color: #667085; font-size: 12px; }
+.metric text:last-child { color: #101828; font-size: 18px; font-weight: 650; margin-top: 8px; }
+.document-list { margin-top: 20px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; }
+.document-row { flex-direction: row; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid #f2f4f7; }
+.document-row:last-child { border-bottom-width: 0; }
+.document-main { flex: 1; min-width: 0; }
+.document-name { display: block; color: #344054; font-size: 14px; font-weight: 600; }
+.document-meta { display: block; color: #667085; font-size: 12px; margin-top: 5px; }
+.document-error { display: block; color: #b42318; font-size: 12px; margin-top: 5px; }
+.row-action { color: #b42318; background-color: #fff; border: 1px solid #fecdca; margin: 0; }
+.empty-card { align-items: center; margin-top: 20px; padding: 46px 20px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; color: #667085; font-size: 13px; }
+.empty-caption { color: #98a2b3; font-size: 12px; margin-top: 8px; }
+.file-input { display: none; }
+@media (max-width: 767px) {
+  .page { padding: 20px 16px 30px; }
+  .page-heading { flex-direction: column; }
+  .heading-actions { flex-wrap: wrap; margin-left: 0; margin-top: 10px; }
+  .metrics { flex-wrap: wrap; }
+  .metric { flex-basis: calc(50% - 5px); }
+  .document-row { flex-wrap: wrap; }
+  .document-main { width: calc(100% - 34px); flex: none; }
+}
+</style>

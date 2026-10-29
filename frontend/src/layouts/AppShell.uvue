@@ -1,0 +1,53 @@
+<template>
+  <view class="shell">
+    <DesktopSidebar />
+    <view class="shell-main">
+      <TopBar />
+      <view v-if="loading" class="shell-state"><text>正在验证会话...</text></view>
+      <view v-else-if="errorMessage" class="shell-state error"><text>{{ errorMessage }}</text></view>
+      <scroll-view v-else scroll-y class="shell-content"><slot /></scroll-view>
+    </view>
+    <MobileTabbar />
+  </view>
+</template>
+
+<script setup lang="uts">
+import { onMounted, ref } from "vue"
+import DesktopSidebar from "./DesktopSidebar.uvue"
+import MobileTabbar from "./MobileTabbar.uvue"
+import TopBar from "./TopBar.uvue"
+import { getSession } from "../services/auth.uts"
+import { setUnauthorizedHandler } from "../services/http.uts"
+import { sessionStore } from "../stores/session.uts"
+import { ConsoleError } from "../utils/errors.uts"
+
+const loading = ref(true)
+const errorMessage = ref("")
+
+onMounted(async (): Promise<void> => {
+  setUnauthorizedHandler(() => sessionStore.handleRequestError({ code: "session_expired" }))
+  try {
+    const response = await getSession()
+    sessionStore.restoreSession(response.data)
+  } catch (error) {
+    if (error instanceof ConsoleError && error.code === "session_expired") {
+      sessionStore.handleRequestError(error)
+    } else {
+      errorMessage.value = "会话验证失败，请稍后重试"
+    }
+  } finally {
+    loading.value = false
+  }
+})
+</script>
+
+<style>
+.shell { flex: 1; flex-direction: row; min-height: 100%; background-color: #f5f7fb; }
+.shell-main { flex: 1; min-width: 0; }
+.shell-content { flex: 1; }
+.shell-state { flex: 1; align-items: center; justify-content: center; color: #667085; font-size: 14px; }
+.shell-state.error { color: #b42318; }
+@media (max-width: 767px) {
+  .shell { padding-bottom: 58px; }
+}
+</style>

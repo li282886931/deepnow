@@ -1,0 +1,108 @@
+<template>
+  <AppShell title="Key 使用统计">
+    <view class="page">
+      <view class="page-heading">
+        <view>
+          <text class="eyebrow">KEY USAGE</text>
+          <text class="heading">使用统计</text>
+          <text class="description">{{ usage?.key.key || "读取中..." }}</text>
+        </view>
+        <view class="range-actions">
+          <button :class="range === '7d' ? 'range-active' : 'range'" @click="changeRange('7d')">近 7 天</button>
+          <button :class="range === '30d' ? 'range-active' : 'range'" @click="changeRange('30d')">近 30 天</button>
+        </view>
+      </view>
+      <ErrorState v-if="errorMessage" title="使用量加载失败" :message="errorMessage" :retry="load" />
+      <view v-else-if="usage" class="content">
+        <view class="metrics">
+          <view class="metric"><text>请求数</text><text>{{ formatCount(usageView.key.request_count) }}</text></view>
+          <view class="metric"><text>输入 Token</text><text>{{ formatCount(usageView.key.input_tokens) }}</text></view>
+          <view class="metric"><text>输出 Token</text><text>{{ formatCount(usageView.key.output_tokens) }}</text></view>
+          <view class="metric"><text>错误数</text><text>{{ formatCount(usageView.key.error_count) }}</text></view>
+        </view>
+        <view class="detail-card">
+          <text class="card-title">Key 信息</text>
+          <text>创建时间：{{ formatTimestamp(usageView.key.created_at) }}</text>
+          <text>最近使用：{{ formatTimestamp(usageView.key.last_used_at) }}</text>
+        </view>
+        <view class="daily-card">
+          <text class="card-title">每日使用量</text>
+          <view v-if="usageView.daily.length === 0" class="no-data"><text>暂无数据</text></view>
+          <view v-for="day in usageView.daily" :key="day.date" class="daily-row">
+            <text>{{ day.date }}</text>
+            <text>{{ formatCount(day.request_count) }} 请求</text>
+            <text>{{ formatCount(day.error_count) }} 错误</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { computed, onMounted, ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import ErrorState from "../../components/ErrorState.uvue"
+import { getKeyUsage } from "../../services/keys.uts"
+import type { KeyUsage, UsageRange } from "../../types/domain.uts"
+import { formatCount, formatTimestamp } from "../../utils/format.uts"
+
+const keyID = ref("")
+const range = ref<UsageRange>("7d")
+const usage = ref<KeyUsage | null>(null)
+const usageView = computed<KeyUsage>(() => usage.value || {
+  key: {
+    id: "",
+    key: "",
+    name: "",
+    status: "active",
+    request_count: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    error_count: 0,
+    created_at: "",
+    last_used_at: null,
+  },
+  daily: [],
+})
+const errorMessage = ref("")
+
+async function load(): Promise<void> {
+  if (!keyID.value) { errorMessage.value = "缺少 Key 标识"; return }
+  errorMessage.value = ""
+  try { usage.value = await getKeyUsage(keyID.value, range.value) }
+  catch (error) { errorMessage.value = error instanceof Error ? error.message : "无法读取使用量" }
+}
+async function changeRange(next: UsageRange): Promise<void> { range.value = next; await load() }
+onMounted(() => {
+  const pagesApi = uni as unknown as { getCurrentPages: () => Array<{ options?: Record<string, string> }> }
+  const pages = pagesApi.getCurrentPages()
+  keyID.value = pages[pages.length - 1]?.options?.key_id || ""
+  load()
+})
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { flex-direction: row; justify-content: space-between; align-items: flex-start; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; font-family: monospace; }
+.range-actions { flex-direction: row; gap: 6px; }
+.range, .range-active { height: 32px; line-height: 32px; margin: 7px 0 0; padding: 0 11px; font-size: 12px; border-radius: 4px; }
+.range { color: #344054; background-color: #fff; border: 1px solid #d0d5dd; }
+.range-active { color: #175cd3; background-color: #eff8ff; border: 1px solid #b2ddff; }
+.content { margin-top: 24px; }
+.metrics { flex-direction: row; gap: 10px; }
+.metric, .detail-card, .daily-card { padding: 15px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; }
+.metric { flex: 1; }
+.metric text { display: block; }
+.metric text:first-child { color: #667085; font-size: 12px; }
+.metric text:last-child { color: #101828; font-size: 20px; font-weight: 650; margin-top: 9px; }
+.detail-card, .daily-card { margin-top: 16px; }
+.detail-card text { display: block; color: #667085; font-size: 13px; line-height: 22px; }
+.card-title { color: #344054 !important; font-weight: 600; margin-bottom: 7px; }
+.daily-row { flex-direction: row; justify-content: space-between; padding: 11px 0; border-top: 1px solid #f2f4f7; color: #667085; font-size: 12px; }
+.no-data { padding: 20px 0; color: #98a2b3; font-size: 13px; }
+@media (max-width: 767px) { .page { padding: 20px 16px 30px; } .metrics { flex-wrap: wrap; } .metric { flex-basis: calc(50% - 5px); } }
+</style>

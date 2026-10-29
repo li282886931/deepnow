@@ -1,0 +1,134 @@
+<template>
+  <AppShell title="系统概览">
+    <view class="page">
+      <view class="page-heading">
+        <view>
+          <text class="eyebrow">SYSTEM OVERVIEW</text>
+          <text class="heading">服务状态</text>
+          <text class="description">查看当前模型、服务健康度和控制台运行信息。</text>
+        </view>
+        <button class="refresh" :disabled="loading" @click="load">刷新</button>
+      </view>
+
+      <ErrorState v-if="errorMessage && !status" title="概览加载失败" :message="errorMessage" :retry="load" />
+      <view v-else>
+        <OperationResult v-if="errorMessage" :message="errorMessage" tone="info" />
+        <MetricStrip :items="metrics" />
+
+        <view class="section">
+          <view class="section-heading">
+            <text class="section-title">当前模型</text>
+            <text class="section-caption">{{ status?.needs_setup ? "尚未完成初始化" : "运行中的模型配置" }}</text>
+          </view>
+          <DataList :rows="modelRows" />
+        </view>
+
+        <view class="section info-grid">
+          <view class="info-card">
+            <text class="card-label">构建信息</text>
+            <text class="card-value">{{ buildInfo || "读取中..." }}</text>
+          </view>
+          <view class="info-card">
+            <text class="card-label">配置提示</text>
+            <text class="card-value">{{ status?.needs_setup ? "请先配置主模型" : "系统已完成基础配置" }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { computed, onMounted, ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import DataList from "../../components/DataList.uvue"
+import ErrorState from "../../components/ErrorState.uvue"
+import MetricStrip from "../../components/MetricStrip.uvue"
+import OperationResult from "../../components/OperationResult.uvue"
+import StatusBadge from "../../components/StatusBadge.uvue"
+import { getBuildInfo, getSystemStatus } from "../../services/system.uts"
+import type { ModelConfigView, SystemStatus } from "../../types/domain.uts"
+
+const status = ref<SystemStatus | null>(null)
+const buildInfo = ref("")
+const loading = ref(true)
+const errorMessage = ref("")
+
+const activeModels = computed<ModelConfigView[]>(() => {
+  if (!status.value) return []
+  return [status.value.active_pri, status.value.active_sec, status.value.active_rag]
+    .filter((model): model is ModelConfigView => model !== null && model !== undefined)
+})
+
+const modelRows = computed(() => activeModels.value.map((model) => ({
+  key: model.active_role + model.provider,
+  title: model.model_name || "未命名模型",
+  subtitle: `${model.provider} · ${model.api_type}`,
+  meta: model.active_role,
+  statusLabel: model.healthy ? "正常" : "异常",
+  statusTone: model.healthy ? "success" : "error",
+})))
+
+const metrics = computed(() => [
+  {
+    label: "主模型",
+    value: status.value?.active_pri ? "已启用" : "未配置",
+    detail: status.value?.active_pri?.model_name || "Primary",
+  },
+  {
+    label: "备用模型",
+    value: status.value?.active_sec ? "已启用" : "未配置",
+    detail: status.value?.active_sec?.model_name || "Secondary",
+  },
+  {
+    label: "Embedding",
+    value: status.value?.active_rag ? "已启用" : "未配置",
+    detail: status.value?.active_rag?.model_name || "RAG",
+  },
+  {
+    label: "系统健康",
+    value: status.value?.healthy ? "正常" : "待配置",
+    detail: buildInfo.value || "当前构建",
+  },
+])
+
+async function load(): Promise<void> {
+  const hasData = status.value !== null
+  if (!hasData) loading.value = true
+  errorMessage.value = ""
+  try {
+    const [nextStatus, nextBuild] = await Promise.all([getSystemStatus(), getBuildInfo()])
+    status.value = nextStatus
+    buildInfo.value = nextBuild
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "无法读取系统状态"
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(load)
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { flex-direction: row; justify-content: space-between; align-items: flex-start; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+.refresh { margin: 7px 0 0 16px; height: 34px; line-height: 34px; color: #344054; background-color: #ffffff; border: 1px solid #d0d5dd; font-size: 12px; }
+.metric-strip { margin-top: 24px; }
+.section { margin-top: 24px; }
+.section-heading { flex-direction: row; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.section-title { color: #344054; font-size: 15px; font-weight: 600; }
+.section-caption { color: #98a2b3; font-size: 12px; }
+.info-grid { flex-direction: row; gap: 12px; }
+.info-card { flex: 1; padding: 16px; background-color: #ffffff; border: 1px solid #eaecf0; border-radius: 5px; }
+.card-label { display: block; color: #667085; font-size: 12px; }
+.card-value { display: block; color: #344054; font-size: 13px; margin-top: 8px; }
+@media (max-width: 767px) {
+  .page { padding: 20px 16px 30px; }
+  .heading { font-size: 22px; }
+  .info-grid { flex-direction: column; }
+}
+</style>

@@ -1,0 +1,8 @@
+# Frontend dependencies, caches, and generated build output
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.DS_Store
+
+# macOS metadata
+.DS_Store

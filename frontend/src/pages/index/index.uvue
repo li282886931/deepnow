@@ -1,0 +1,19 @@
+<template>
+  <AppShell>
+    <view class="landing"><text>正在打开系统概览...</text></view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import AppShell from "../../layouts/AppShell.uvue"
+</script>
+
+<style>
+.landing { padding: 30px; }
+.intro-title { display: block; color: #101828; font-size: 24px; font-weight: 650; }
+.intro-copy { display: block; color: #667085; font-size: 14px; margin-top: 8px; }
+.state-panel { margin-top: 24px; padding: 22px; background-color: #ffffff; border: 1px solid #eaecf0; border-radius: 5px; }
+.panel-title { display: block; color: #344054; font-size: 15px; font-weight: 600; }
+.panel-copy { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+@media (max-width: 767px) { .landing { padding: 20px 16px; } }
+</style>

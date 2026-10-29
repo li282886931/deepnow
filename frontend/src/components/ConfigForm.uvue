@@ -1,0 +1,107 @@
+<template>
+  <view class="config-form">
+    <view class="form-grid">
+      <view class="field">
+        <text class="label">Provider</text>
+        <input v-model="provider" class="input" placeholder="例如 OpenAI" />
+      </view>
+      <view class="field">
+        <text class="label">类型</text>
+        <input v-model="apiType" class="input" placeholder="LM 或 Embedding" />
+      </view>
+      <view class="field wide">
+        <text class="label">模型名称</text>
+        <input v-model="modelName" class="input" placeholder="请输入模型名称" />
+      </view>
+      <view class="field wide">
+        <text class="label">Endpoint</text>
+        <input v-model="endpoint" class="input" placeholder="LM Studio 必填，例如 127.0.0.1:1234" />
+      </view>
+      <view class="field wide">
+        <text class="label">API Key</text>
+        <input v-model="apiKey" class="input" password placeholder="保存时请输入完整 API Key" />
+        <text v-if="maskedKey" class="hint">当前值：{{ maskedKey }}</text>
+      </view>
+    </view>
+    <OperationResult :message="validationText" tone="error" />
+    <view class="form-actions">
+      <button class="secondary" :disabled="busy" @click="test">测试连接</button>
+      <button class="primary" :disabled="busy" @click="save">{{ busy ? "保存中..." : "保存配置" }}</button>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { computed, ref } from "vue"
+import OperationResult from "./OperationResult.uvue"
+import type { ModelConfigInput, ModelConfigView } from "../types/domain.uts"
+
+const props = defineProps<{
+  model?: ModelConfigView
+  busy?: boolean
+  validationMessage?: string
+}>()
+const emit = defineEmits<{
+  (event: "save", value: ModelConfigInput): void
+  (event: "test", value: ModelConfigInput): void
+}>()
+
+const provider = ref(props.model?.provider || "")
+const apiType = ref(props.model?.api_type || "LM")
+const modelName = ref(props.model?.model_name || "")
+const endpoint = ref(props.model?.endpoint || "")
+const apiKey = ref("")
+const maskedKey = props.model?.api_key_masked || ""
+const localValidationMessage = ref("")
+const validationText = computed(() => localValidationMessage.value || props.validationMessage || "")
+
+function value(): ModelConfigInput | null {
+  const input: ModelConfigInput = {
+    provider: provider.value.trim(),
+    api_type: apiType.value.trim(),
+    api_key: apiKey.value,
+    model_name: modelName.value.trim(),
+    endpoint: endpoint.value.trim(),
+  }
+  if (!input.provider || !input.api_type || !input.model_name || !input.api_key) return null
+  return input
+}
+
+function save(): void {
+  const input = value()
+  if (input) {
+    localValidationMessage.value = ""
+    emit("save", input)
+  } else {
+    localValidationMessage.value = "请填写 Provider、类型、模型名称和完整 API Key"
+  }
+}
+
+function test(): void {
+  const input = value()
+  if (input) {
+    localValidationMessage.value = ""
+    emit("test", input)
+  } else {
+    localValidationMessage.value = "请填写 Provider、类型、模型名称和完整 API Key"
+  }
+}
+</script>
+
+<style>
+.config-form { padding: 20px; background-color: #ffffff; border: 1px solid #eaecf0; border-radius: 5px; }
+.form-grid { flex-direction: row; flex-wrap: wrap; gap: 0 16px; }
+.field { width: calc(50% - 8px); margin-bottom: 15px; }
+.field.wide { width: 100%; }
+.label { display: block; color: #344054; font-size: 12px; margin-bottom: 6px; }
+.input { height: 40px; padding: 0 11px; border: 1px solid #d0d5dd; border-radius: 4px; color: #101828; font-size: 13px; box-sizing: border-box; }
+.hint { display: block; color: #98a2b3; font-size: 11px; margin-top: 5px; }
+.form-actions { flex-direction: row; justify-content: flex-end; gap: 9px; margin-top: 16px; }
+button { height: 36px; line-height: 36px; margin: 0; padding: 0 14px; font-size: 12px; border-radius: 4px; }
+.primary { color: #ffffff; background-color: #175cd3; }
+.secondary { color: #344054; background-color: #ffffff; border: 1px solid #d0d5dd; }
+@media (max-width: 767px) {
+  .field { width: 100%; }
+  .config-form { padding: 15px; }
+}
+</style>

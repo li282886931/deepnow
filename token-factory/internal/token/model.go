@@ -14,28 +14,28 @@ const (
 )
 
 type CreateRequest struct {
-	ActorID        string
+	ActorID       string
 	IdempotencyKey string
-	AppID          string
-	Name           string
-	TokenType      string
-	Env            string
-	Scopes         string
-	Quota          string
-	ExpiresAt      time.Time
-	OwnerID        string
+	AppID         string
+	Name          string
+	TokenType     string
+	Env           string
+	Scopes        string
+	Quota         string
+	ExpiresAt     time.Time
+	OwnerID       string
 }
 
 type RotateRequest struct {
-	ActorID        string
+	ActorID       string
 	IdempotencyKey string
-	GracePeriod    time.Duration
+	GracePeriod   time.Duration
 }
 
 type ExtendRequest struct {
-	ActorID        string
+	ActorID       string
 	IdempotencyKey string
-	ExpiresAt      time.Time
+	ExpiresAt     time.Time
 }
 
 type TokenMetadata struct {
@@ -54,7 +54,7 @@ type TokenMetadata struct {
 }
 
 type Result struct {
-	TokenID  string        `json:"token_id"`
-	Secret   string        `json:"secret,omitempty"`
+	TokenID string       `json:"token_id"`
+	Secret  string       `json:"secret,omitempty"`
 	Metadata TokenMetadata `json:"metadata"`
 }

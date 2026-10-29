@@ -1,0 +1,22 @@
+<template>
+  <view class="state">
+    <text class="state-title">{{ title }}</text>
+    <text class="state-description">{{ message }}</text>
+    <button v-if="retry" class="retry-button" @click="retry">重试</button>
+  </view>
+</template>
+
+<script setup lang="uts">
+defineProps<{
+  title?: string
+  message: string
+  retry?: () => void
+}>()
+</script>
+
+<style>
+.state { align-items: center; padding: 40px 24px; }
+.state-title { color: #b42318; font-size: 15px; font-weight: 600; }
+.state-description { color: #667085; font-size: 13px; margin-top: 8px; text-align: center; }
+.retry-button { margin-top: 16px; color: #175cd3; background-color: #eff8ff; }
+</style>

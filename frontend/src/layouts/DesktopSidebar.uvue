@@ -1,0 +1,83 @@
+<template>
+  <view class="sidebar">
+    <view class="brand">
+      <text class="brand-mark">D</text>
+      <text class="brand-name">DeepNow</text>
+    </view>
+    <view class="nav-list">
+      <view class="nav-item active" @click="go('/pages/overview/overview')">
+        <text class="nav-icon">⌂</text>
+        <text>概览</text>
+      </view>
+      <view class="nav-item" @click="go('/pages/models/models')">
+        <text class="nav-icon">•</text>
+        <text>模型管理</text>
+      </view>
+      <view class="nav-item" @click="go('/pages/access-keys/access-keys')">
+        <text class="nav-icon">#</text>
+        <text>访问控制</text>
+      </view>
+      <view class="nav-item" @click="go('/pages/knowledge/knowledge')">
+        <text class="nav-icon">◇</text>
+        <text>知识库</text>
+      </view>
+      <view class="nav-item" @click="go('/pages/policies/policies')">
+        <text class="nav-icon">≡</text>
+        <text>策略</text>
+      </view>
+      <view class="nav-item" @click="go('/pages/system/system')">
+        <text class="nav-icon">⚙</text>
+        <text>系统</text>
+      </view>
+      <view class="nav-item" @click="go('/pages/diagnostics/diagnostics')">
+        <text class="nav-icon">✓</text>
+        <text>诊断</text>
+      </view>
+      <view class="nav-item" @click="go('/pages/audit/audit')">
+        <text class="nav-icon">▤</text>
+        <text>审计</text>
+      </view>
+    </view>
+    <view class="sidebar-foot">
+      <text class="sidebar-caption">管理控制台</text>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+function go(url: string): void {
+  uni.navigateTo({ url })
+}
+</script>
+
+<style>
+.sidebar {
+  width: 224px;
+  flex-shrink: 0;
+  background-color: #101828;
+  padding: 24px 14px;
+  box-sizing: border-box;
+}
+.brand { flex-direction: row; align-items: center; padding: 0 10px 28px; }
+.brand-mark {
+  width: 28px; height: 28px; line-height: 28px; text-align: center;
+  color: #ffffff; background-color: #175cd3; border-radius: 6px; font-weight: 700;
+}
+.brand-name { color: #ffffff; font-size: 17px; font-weight: 600; margin-left: 9px; }
+.nav-list { gap: 5px; }
+.nav-item {
+  flex-direction: row; align-items: center; padding: 11px 12px;
+  border-radius: 5px; color: #d0d5dd; font-size: 14px;
+}
+.nav-item.active { color: #ffffff; background-color: #1d2939; }
+.nav-icon { width: 22px; color: #98a2b3; }
+.sidebar-foot { margin-top: auto; padding: 16px 10px 4px; }
+.sidebar-caption { color: #667085; font-size: 12px; }
+@media (min-width: 768px) and (max-width: 1199px) {
+  .sidebar { width: 72px; padding-left: 10px; padding-right: 10px; }
+  .brand { justify-content: center; padding-left: 0; padding-right: 0; }
+  .brand-name, .nav-item text:not(.nav-icon), .sidebar-foot { display: none; }
+  .nav-item { justify-content: center; padding-left: 8px; padding-right: 8px; }
+}
+@media (max-width: 767px) { .sidebar { display: none; } }
+</style>

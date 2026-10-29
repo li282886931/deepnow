@@ -1,0 +1,108 @@
+<template>
+  <AppShell title="系统配置">
+    <view class="page">
+      <view class="page-heading">
+        <view>
+          <text class="eyebrow">SYSTEM CONFIGURATION</text>
+          <text class="heading">系统配置</text>
+          <text class="description">配置网关、管理端口、连接限制和 TLS 文件路径。</text>
+        </view>
+        <button class="secondary" :disabled="loading || saving" @click="load">刷新</button>
+      </view>
+
+      <ErrorState v-if="loadError && !loaded" title="系统配置加载失败" :message="loadError" :retry="load" />
+      <OperationResult :message="message" :tone="messageTone" />
+      <view v-if="loaded" class="panel">
+        <view class="form-grid">
+          <view class="field"><text class="label">网关地址</text><input v-model="draft.endpoint_ip" class="input" /></view>
+          <view class="field"><text class="label">网关端口</text><input v-model="draft.endpoint_port" class="input" type="number" /></view>
+          <view class="field"><text class="label">管理地址</text><input v-model="draft.webui_ip" class="input" /></view>
+          <view class="field"><text class="label">管理端口</text><input v-model="draft.webui_port" class="input" type="number" /></view>
+          <view class="field wide"><text class="label">域名</text><input v-model="draft.domain_name" class="input" placeholder="可选" /></view>
+          <view class="field"><text class="label">最大连接数</text><input v-model="draft.max_total_conns" class="input" type="number" /></view>
+          <view class="field"><text class="label">单 IP 连接数</text><input v-model="draft.max_conns_per_ip" class="input" type="number" /></view>
+          <view class="field"><text class="label">证书路径</text><input v-model="draft.cert_file" class="input" /></view>
+          <view class="field"><text class="label">私钥路径</text><input v-model="draft.key_file" class="input" /></view>
+        </view>
+        <text v-if="validationMessage" class="validation">{{ validationMessage }}</text>
+        <view class="actions"><button class="primary" :disabled="saving" @click="save">{{ saving ? "保存中..." : "保存配置" }}</button></view>
+      </view>
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { onMounted, reactive, ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import ErrorState from "../../components/ErrorState.uvue"
+import OperationResult from "../../components/OperationResult.uvue"
+import { getConfig, saveConfig } from "../../services/policies.uts"
+import type { SystemConfig } from "../../types/domain.uts"
+
+const draft = reactive<SystemConfig>({
+  endpoint_ip: "", endpoint_port: "", webui_ip: "", webui_port: "",
+  domain_name: "", max_total_conns: 0, max_conns_per_ip: 0, cert_file: "", key_file: "",
+})
+const loading = ref(true)
+const loaded = ref(false)
+const saving = ref(false)
+const loadError = ref("")
+const validationMessage = ref("")
+const message = ref("")
+const messageTone = ref<"success" | "error" | "info">("info")
+
+function applyConfig(value: SystemConfig): void {
+  Object.assign(draft, value)
+}
+
+async function load(): Promise<void> {
+  loading.value = true
+  loadError.value = ""
+  try {
+    applyConfig(await getConfig())
+    loaded.value = true
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : "无法读取系统配置"
+  } finally {
+    loading.value = false
+  }
+}
+
+async function save(): Promise<void> {
+  saving.value = true
+  validationMessage.value = ""
+  message.value = ""
+  try {
+    await saveConfig({ ...draft })
+    message.value = "系统配置已保存"
+    messageTone.value = "success"
+  } catch (error) {
+    validationMessage.value = error instanceof Error ? error.message : "系统配置保存失败"
+    messageTone.value = "error"
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(load)
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+button { height: 34px; line-height: 34px; margin: 7px 0 0; padding: 0 13px; font-size: 12px; border-radius: 4px; }
+.primary { color: #fff; background-color: #175cd3; }
+.secondary { color: #344054; background-color: #fff; border: 1px solid #d0d5dd; }
+.panel { margin-top: 24px; padding: 20px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; }
+.form-grid { flex-direction: row; flex-wrap: wrap; gap: 0 16px; }
+.field { width: calc(50% - 8px); margin-bottom: 16px; }
+.field.wide { width: 100%; }
+.label { display: block; color: #344054; font-size: 12px; margin-bottom: 6px; }
+.input { height: 38px; padding: 0 10px; border: 1px solid #d0d5dd; border-radius: 4px; color: #101828; font-size: 13px; box-sizing: border-box; }
+.validation { display: block; color: #b42318; font-size: 12px; margin-top: 2px; }
+.actions { flex-direction: row; justify-content: flex-end; margin-top: 5px; }
+@media (max-width: 767px) { .page { padding: 20px 16px 30px; } .field { width: 100%; } }
+</style>

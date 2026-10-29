@@ -1,0 +1,27 @@
+import type { HealthState } from "../types/domain.uts"
+
+export type HealthPresentation = {
+  label: string
+  tone: "success" | "error" | "neutral"
+}
+
+export function formatHealth(state: HealthState): HealthPresentation {
+  if (state === "healthy") return { label: "正常", tone: "success" }
+  if (state === "unhealthy") return { label: "异常", tone: "error" }
+  return { label: "未检测", tone: "neutral" }
+}
+
+export function formatCount(value: number | null | undefined): string {
+  return (value || 0).toLocaleString("en-US")
+}
+
+export function formatValue(value: string | null | undefined): string {
+  return value && value.trim().length > 0 ? value : "未配置"
+}
+
+export function formatTimestamp(value: string | null | undefined): string {
+  if (!value) return "未记录"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "未记录"
+  return date.toLocaleString("zh-CN", { hour12: false })
+}

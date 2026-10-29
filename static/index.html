@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DeepNow 管理后台</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f6f7f9;
+        color: #1f2937;
+      }
+      main {
+        max-width: 520px;
+        margin: 72px auto;
+        padding: 32px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+      }
+      p {
+        margin: 0 0 24px;
+        color: #6b7280;
+        line-height: 1.6;
+      }
+      label {
+        display: block;
+        margin: 16px 0 6px;
+        font-weight: 600;
+      }
+      input,
+      button {
+        box-sizing: border-box;
+        width: 100%;
+        height: 42px;
+        border-radius: 6px;
+        font-size: 15px;
+      }
+      input {
+        border: 1px solid #d1d5db;
+        padding: 0 12px;
+      }
+      button {
+        margin-top: 20px;
+        border: 0;
+        background: #111827;
+        color: #fff;
+        cursor: pointer;
+      }
+      pre {
+        margin-top: 20px;
+        padding: 14px;
+        border-radius: 6px;
+        overflow: auto;
+        background: #f3f4f6;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>DeepNow 管理后台</h1>
+      <p>登录后可通过 API 管理模型、Key 与 RAG 配置。默认账号为 admin，首次部署后请立即修改默认密码。</p>
+      <form id="login-form">
+        <label for="username">用户名</label>
+        <input id="username" name="username" value="admin" autocomplete="username" />
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" />
+        <button type="submit">登录并检查状态</button>
+      </form>
+      <pre id="output">等待登录</pre>
+    </main>
+    <script>
+      const form = document.querySelector("#login-form");
+      const output = document.querySelector("#output");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        output.textContent = "登录中...";
+        const body = new URLSearchParams(new FormData(form));
+        const login = await fetch("/api/login", { method: "POST", body });
+        const loginData = await login.json();
+        if (!loginData.success) {
+          output.textContent = loginData.message || "登录失败";
+          return;
+        }
+        const status = await fetch("/api/system/status");
+        output.textContent = JSON.stringify(await status.json(), null, 2);
+      });
+    </script>
+  </body>
+</html>

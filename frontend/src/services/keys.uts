@@ -1,0 +1,112 @@
+import { request } from "./http.uts"
+import type { ApiKeyView, DailyKeyUsage, KeyUsage, UsageRange } from "../types/domain.uts"
+
+type RawApiKey = {
+  id?: string
+  key?: string
+  name?: string
+  status?: string
+  used?: boolean
+  request_count?: number
+  input_tokens?: number
+  output_tokens?: number
+  error_count?: number
+  created_at?: string
+  last_used_at?: string | null
+}
+
+type RawDailyUsage = {
+  date?: string
+  usage_date?: string
+  request_count?: number
+  input_tokens?: number
+  output_tokens?: number
+  error_count?: number
+}
+
+type RawKeyUsage = {
+  key?: RawApiKey
+  daily?: RawDailyUsage[]
+}
+
+function jsonBody(value: unknown): string {
+  return JSON.stringify(value)
+}
+
+function normalizeKey(raw: RawApiKey): ApiKeyView {
+  return {
+    id: raw.id || raw.key || "",
+    key: raw.key || "",
+    name: raw.name || "",
+    status: raw.status === "disabled" ? "disabled" : "active",
+    request_count: raw.request_count || 0,
+    input_tokens: raw.input_tokens || 0,
+    output_tokens: raw.output_tokens || 0,
+    error_count: raw.error_count || 0,
+    created_at: raw.created_at || "",
+    last_used_at: raw.last_used_at || null,
+  }
+}
+
+function normalizeDaily(raw: RawDailyUsage): DailyKeyUsage {
+  return {
+    date: raw.date || raw.usage_date || "",
+    request_count: raw.request_count || 0,
+    input_tokens: raw.input_tokens || 0,
+    output_tokens: raw.output_tokens || 0,
+    error_count: raw.error_count || 0,
+  }
+}
+
+export type OneTimeSecret = {
+  readonly value: string
+  acknowledge: () => void
+}
+
+export function createOneTimeSecret(secret: string): OneTimeSecret {
+  let current = secret
+  return {
+    get value(): string {
+      return current
+    },
+    acknowledge(): void {
+      current = ""
+    },
+  }
+}
+
+export async function listKeys(): Promise<ApiKeyView[]> {
+  const response = await request<RawApiKey[]>("/api/keys/list")
+  return (response.data || []).map(normalizeKey)
+}
+
+export async function generateKeys(): Promise<string[]> {
+  const response = await request<string[]>("/api/keys/generate", { method: "POST" })
+  return response.data || []
+}
+
+export async function importKeys(keys: string[]): Promise<void> {
+  await request<null>("/api/keys/import", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: jsonBody(keys),
+  })
+}
+
+export async function deleteKeys(keys: string[]): Promise<void> {
+  await request<null>("/api/keys/delete", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: jsonBody(keys),
+  })
+}
+
+export async function getKeyUsage(keyID: string, range: UsageRange): Promise<KeyUsage> {
+  const response = await request<RawKeyUsage>(
+    `/api/keys/usage?key_id=${encodeURIComponent(keyID)}&range=${range}`,
+  )
+  return {
+    key: normalizeKey(response.data.key || {}),
+    daily: (response.data.daily || []).map(normalizeDaily),
+  }
+}

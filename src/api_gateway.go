@@ -9,45 +9,89 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type ChatRequest struct {
 	Model    string `json:"model"`
+	Stream   bool   `json:"stream"`
 	Messages []struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	} `json:"messages"`
 }
 
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func writeChatCompletion(w http.ResponseWriter, content string) {
+	w.Header().Set("Content-Type", "application/json")
+	escapedContent, _ := json.Marshal(content)
+	fmt.Fprintf(w, `{"choices":[{"message":{"content":%s}}]}`, string(escapedContent))
+}
+
+func writeChatCompletionStream(w http.ResponseWriter, content string) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	escapedContent, _ := json.Marshal(content)
+	fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":%s}}]}\n\n", string(escapedContent))
+	fmt.Fprint(w, "data: [DONE]\n\n")
+}
+
+func incrementKeyUsage(clientKey string) error {
+	keyUsageMu.Lock()
+	defer keyUsageMu.Unlock()
+
+	used, exists := authKeys.Load(clientKey)
+	if !exists {
+		return fmt.Errorf("invalid api key")
+	}
+	newUsed := used.(int) + 1
+	authKeys.Store(clientKey, newUsed)
+	if _, err := keyDB.Exec(`UPDATE access_keys SET used=?, last_used_at=? WHERE api_key=?`,
+		newUsed, time.Now().UTC(), clientKey); err != nil {
+		return err
+	}
+	return recordKeyUsage(clientKey, 0, 0, false)
+}
+
 func handleGatewayCompletions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
+		return
+	}
+
 	// 检查主干大模型是否可用
 	activePri := getActiveModel("LM", "primary")
 	if activePri == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprint(w, `{"error": "AIBase_Server_Error: 系统未配置完整或无可用主干"}`)
+		writeJSONError(w, http.StatusServiceUnavailable, "AIBase_Server_Error: 系统未配置完整或无可用主干")
 		return
 	}
 
 	// 鉴权扣费
 	authHeader := r.Header.Get("Authorization")
 	clientKey := strings.TrimPrefix(authHeader, "Bearer ")
-	used, exists := authKeys.Load(clientKey)
-	if !exists {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, `{"error":"Invalid API Key"}`)
+	if _, exists := authKeys.Load(clientKey); !exists {
+		writeJSONError(w, http.StatusUnauthorized, "Invalid API Key")
 		return
 	}
-
-	newUsed := used.(int) + 1
-	authKeys.Store(clientKey, newUsed)
-	keyDB.Exec(`UPDATE access_keys SET used=? WHERE api_key=?`, newUsed, clientKey)
 
 	// 解析请求体，合并客户传来的 System Prompt，提取 User 提问
 	var chatReq ChatRequest
 	body, _ := io.ReadAll(r.Body)
-	json.Unmarshal(body, &chatReq)
+	if err := json.Unmarshal(body, &chatReq); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
+
+	if err := incrementKeyUsage(clientKey); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Failed to update key usage")
+		return
+	}
 
 	userPrompt := ""
 	clientSysPrompt := ""
@@ -83,10 +127,11 @@ func handleGatewayCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// 如果是强制 RAG (2档)，且没查到知识库，直接网关截停返回 _UNKNOWN_
 	if ragSlider == 2 && ragContext == "" {
-		w.Header().Set("Content-Type", "application/json")
-		escapedContent, _ := json.Marshal("_UNKNOWN_")
-		simulatedReply := fmt.Sprintf(`{"choices":[{"message":{"content":%s}}]}`, string(escapedContent))
-		fmt.Fprint(w, simulatedReply)
+		if chatReq.Stream {
+			writeChatCompletionStream(w, "_UNKNOWN_")
+		} else {
+			writeChatCompletion(w, "_UNKNOWN_")
+		}
 		return
 	}
 
@@ -101,12 +146,11 @@ func handleGatewayCompletions(w http.ResponseWriter, r *http.Request) {
 	replyContent, err := callRealLM(sysPrompt, userPrompt, activePri)
 
 	// 格式化输出为标准 OpenAI 格式
-	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
-		fmt.Fprintf(w, `{"error": "AIBase_API_Error: %s"}`, err.Error())
+		writeJSONError(w, http.StatusBadGateway, "AIBase_API_Error: "+err.Error())
+	} else if chatReq.Stream {
+		writeChatCompletionStream(w, replyContent)
 	} else {
-		escapedContent, _ := json.Marshal(replyContent)
-		simulatedReply := fmt.Sprintf(`{"choices":[{"message":{"content":%s}}]}`, string(escapedContent))
-		fmt.Fprint(w, simulatedReply)
+		writeChatCompletion(w, replyContent)
 	}
 }

@@ -1,0 +1,88 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationBarTitleText": "登录 - DeepNow"
+      }
+    },
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "DeepNow Admin Console"
+      }
+    },
+    {
+      "path": "pages/overview/overview",
+      "style": {
+        "navigationBarTitleText": "系统概览"
+      }
+    },
+    {
+      "path": "pages/models/models",
+      "style": {
+        "navigationBarTitleText": "模型管理"
+      }
+    },
+    {
+      "path": "pages/models/edit",
+      "style": {
+        "navigationBarTitleText": "编辑模型"
+      }
+    },
+    {
+      "path": "pages/access-keys/access-keys",
+      "style": {
+        "navigationBarTitleText": "访问控制"
+      }
+    },
+    {
+      "path": "pages/access-keys/usage",
+      "style": {
+        "navigationBarTitleText": "Key 使用统计"
+      }
+    },
+    {
+      "path": "pages/knowledge/knowledge",
+      "style": {
+        "navigationBarTitleText": "知识库管理"
+      }
+    },
+    {
+      "path": "pages/knowledge/retrieval",
+      "style": {
+        "navigationBarTitleText": "检索测试"
+      }
+    },
+    {
+      "path": "pages/policies/policies",
+      "style": {
+        "navigationBarTitleText": "策略配置"
+      }
+    },
+    {
+      "path": "pages/system/system",
+      "style": {
+        "navigationBarTitleText": "系统配置"
+      }
+    },
+    {
+      "path": "pages/diagnostics/diagnostics",
+      "style": {
+        "navigationBarTitleText": "系统诊断"
+      }
+    },
+    {
+      "path": "pages/audit/audit",
+      "style": {
+        "navigationBarTitleText": "操作审计"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "DeepNow Admin Console",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f5f7fb"
+  }
+}

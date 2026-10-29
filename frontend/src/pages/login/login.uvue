@@ -1,0 +1,67 @@
+<template>
+  <view class="login-page">
+    <view class="login-panel">
+      <view class="brand-row">
+        <text class="brand-mark">D</text>
+        <text class="brand-name">DeepNow</text>
+      </view>
+      <text class="login-title">登录管理控制台</text>
+      <text class="login-subtitle">使用管理员账户继续</text>
+      <view class="form">
+        <text class="label">用户名</text>
+        <input v-model="username" class="input" placeholder="请输入用户名" />
+        <text class="label">密码</text>
+        <input v-model="password" class="input" password placeholder="请输入密码" />
+        <OperationResult :message="errorMessage" tone="error" />
+        <button class="submit" :disabled="submitting" @click="submit">
+          {{ submitting ? "登录中..." : "登录" }}
+        </button>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref } from "vue"
+import OperationResult from "../../components/OperationResult.uvue"
+import { login } from "../../services/auth.uts"
+import { sessionStore } from "../../stores/session.uts"
+
+const username = ref("")
+const password = ref("")
+const submitting = ref(false)
+const errorMessage = ref("")
+
+async function submit(): Promise<void> {
+  errorMessage.value = ""
+  if (username.value.trim().length === 0 || password.value.length === 0) {
+    errorMessage.value = "请输入用户名和密码"
+    return
+  }
+  submitting.value = true
+  try {
+    const response = await login({ username: username.value.trim(), password: password.value })
+    sessionStore.setSession(response.data)
+    password.value = ""
+    uni.reLaunch({ url: "/pages/overview/overview" })
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "登录失败，请检查账户信息"
+  } finally {
+    submitting.value = false
+  }
+}
+</script>
+
+<style>
+.login-page { flex: 1; align-items: center; justify-content: center; background-color: #f5f7fb; padding: 24px; }
+.login-panel { width: 390px; max-width: 100%; padding: 34px; background-color: #ffffff; border: 1px solid #eaecf0; border-radius: 6px; box-sizing: border-box; }
+.brand-row { flex-direction: row; align-items: center; }
+.brand-mark { width: 30px; height: 30px; line-height: 30px; text-align: center; color: #ffffff; background-color: #175cd3; border-radius: 6px; font-weight: 700; }
+.brand-name { color: #101828; font-size: 18px; font-weight: 650; margin-left: 9px; }
+.login-title { display: block; margin-top: 34px; color: #101828; font-size: 24px; font-weight: 650; }
+.login-subtitle { display: block; color: #667085; font-size: 13px; margin-top: 8px; }
+.form { margin-top: 28px; }
+.label { display: block; color: #344054; font-size: 13px; margin-top: 16px; margin-bottom: 7px; }
+.input { height: 42px; padding: 0 12px; border: 1px solid #d0d5dd; border-radius: 4px; color: #101828; font-size: 14px; box-sizing: border-box; }
+.submit { margin-top: 20px; height: 42px; line-height: 42px; color: #ffffff; background-color: #175cd3; border-radius: 4px; font-size: 14px; }
+</style>

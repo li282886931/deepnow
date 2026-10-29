@@ -1,0 +1,19 @@
+import { request } from "./http.uts"
+import type { AuditEvent } from "../types/domain.uts"
+
+type RawAuditEvent = Partial<AuditEvent>
+
+export async function listAuditEvents(limit = 100): Promise<AuditEvent[]> {
+  const response = await request<RawAuditEvent[]>(
+    `/api/audit/events?limit=${Math.min(Math.max(Math.trunc(limit), 1), 500)}`,
+  )
+  return (response.data || []).map((item) => ({
+    id: item.id || 0,
+    actor: item.actor || "",
+    action: item.action || "",
+    resource_type: item.resource_type || "",
+    resource_id: item.resource_id || "",
+    result: item.result || "",
+    created_at: item.created_at || "",
+  }))
+}

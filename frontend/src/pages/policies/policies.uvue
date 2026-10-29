@@ -1,0 +1,111 @@
+<template>
+  <AppShell title="策略配置">
+    <view class="page">
+      <view class="page-heading">
+        <view>
+          <text class="eyebrow">POLICY CONTROL</text>
+          <text class="heading">RAG 策略</text>
+          <text class="description">控制检索内容注入和无匹配结果时的回答策略。</text>
+        </view>
+        <button class="secondary" :disabled="loading || saving" @click="load">刷新</button>
+      </view>
+
+      <ErrorState v-if="loadError && !loaded" title="策略加载失败" :message="loadError" :retry="load" />
+      <OperationResult :message="message" :tone="messageTone" />
+      <view v-if="loaded" class="panel">
+        <text class="panel-title">RAG 强度</text>
+        <text class="panel-copy">选择网关处理知识库上下文的方式。</text>
+        <view class="options">
+          <view v-for="option in options" :key="option.value" class="option" :class="{ selected: draft.rag_slider === option.value }" @click="draft.rag_slider = option.value">
+            <text class="option-title">{{ option.title }}</text>
+            <text class="option-copy">{{ option.description }}</text>
+          </view>
+        </view>
+        <text v-if="validationMessage" class="validation">{{ validationMessage }}</text>
+        <view class="actions">
+          <button class="primary" :disabled="saving" @click="save">{{ saving ? "保存中..." : "保存策略" }}</button>
+        </view>
+      </view>
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { onMounted, reactive, ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import ErrorState from "../../components/ErrorState.uvue"
+import OperationResult from "../../components/OperationResult.uvue"
+import { getRules, saveRules } from "../../services/policies.uts"
+import type { PolicyConfig } from "../../types/domain.uts"
+
+const options = [
+  { value: 0, title: "普通模式", description: "允许模型在没有检索结果时使用自身知识。" },
+  { value: 1, title: "优先检索", description: "优先使用知识库内容，同时保留模型补充能力。" },
+  { value: 2, title: "严格检索", description: "没有可靠检索结果时不使用模型内部知识。" },
+]
+const draft = reactive<PolicyConfig>({ rag_slider: 1 })
+const loading = ref(true)
+const loaded = ref(false)
+const saving = ref(false)
+const loadError = ref("")
+const validationMessage = ref("")
+const message = ref("")
+const messageTone = ref<"success" | "error" | "info">("info")
+
+async function load(): Promise<void> {
+  loading.value = true
+  loadError.value = ""
+  try {
+    const value = await getRules()
+    draft.rag_slider = value.rag_slider
+    loaded.value = true
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : "无法读取策略"
+  } finally {
+    loading.value = false
+  }
+}
+
+async function save(): Promise<void> {
+  saving.value = true
+  validationMessage.value = ""
+  message.value = ""
+  try {
+    await saveRules({ rag_slider: draft.rag_slider })
+    message.value = "策略已保存"
+    messageTone.value = "success"
+  } catch (error) {
+    validationMessage.value = error instanceof Error ? error.message : "策略保存失败"
+    messageTone.value = "error"
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(load)
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+button { height: 34px; line-height: 34px; margin: 7px 0 0; padding: 0 13px; font-size: 12px; border-radius: 4px; }
+.primary { color: #fff; background-color: #175cd3; }
+.secondary { color: #344054; background-color: #fff; border: 1px solid #d0d5dd; }
+.panel { margin-top: 24px; padding: 20px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; }
+.panel-title { display: block; color: #344054; font-size: 15px; font-weight: 600; }
+.panel-copy { display: block; color: #667085; font-size: 12px; margin-top: 6px; }
+.options { flex-direction: row; gap: 10px; margin-top: 20px; }
+.option { flex: 1; padding: 16px; border: 1px solid #d0d5dd; border-radius: 5px; }
+.option.selected { border-color: #175cd3; background-color: #eff8ff; }
+.option-title { display: block; color: #344054; font-size: 13px; font-weight: 600; }
+.option-copy { display: block; color: #667085; font-size: 12px; margin-top: 7px; line-height: 18px; }
+.validation { display: block; color: #b42318; font-size: 12px; margin-top: 14px; }
+.actions { flex-direction: row; justify-content: flex-end; margin-top: 18px; }
+@media (max-width: 767px) {
+  .page { padding: 20px 16px 30px; }
+  .options { flex-direction: column; }
+}
+</style>

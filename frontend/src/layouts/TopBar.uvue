@@ -1,0 +1,55 @@
+<template>
+  <view class="topbar">
+    <view>
+      <text class="eyebrow">DEEPNOW ADMIN</text>
+      <text class="title">{{ title }}</text>
+    </view>
+    <view class="topbar-actions">
+      <text v-if="sessionStore.user" class="user-name">{{ displayName }}</text>
+      <button class="logout" :disabled="loggingOut" @click="handleLogout">
+        {{ loggingOut ? "退出中..." : "退出登录" }}
+      </button>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { computed, ref } from "vue"
+import { logout } from "../services/auth.uts"
+import { sessionStore } from "../stores/session.uts"
+
+withDefaults(defineProps<{ title?: string }>(), { title: "管理控制台" })
+const loggingOut = ref(false)
+const displayName = computed(() => sessionStore.user?.display_name || "")
+
+async function handleLogout(): Promise<void> {
+  loggingOut.value = true
+  try {
+    await logout()
+  } catch (_) {
+    // The local session is cleared even when the server session has expired.
+  }
+  sessionStore.clearSession()
+  uni.reLaunch({ url: "/pages/login/login" })
+  loggingOut.value = false
+}
+</script>
+
+<style>
+.topbar {
+  min-height: 72px; flex-direction: row; align-items: center; justify-content: space-between;
+  padding: 14px 30px; border-bottom: 1px solid #eaecf0; background-color: #ffffff;
+  box-sizing: border-box;
+}
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.title { display: block; color: #101828; font-size: 20px; font-weight: 650; margin-top: 4px; }
+.topbar-actions { flex-direction: row; align-items: center; gap: 14px; }
+.user-name { color: #667085; font-size: 13px; }
+.logout { margin: 0; padding: 0 12px; height: 32px; line-height: 30px; color: #344054; border: 1px solid #d0d5dd; background-color: #ffffff; font-size: 12px; }
+@media (max-width: 767px) {
+  .topbar { min-height: 62px; padding: 12px 16px; }
+  .eyebrow { display: none; }
+  .title { font-size: 18px; }
+  .user-name { display: none; }
+}
+</style>

@@ -1,0 +1,156 @@
+export type HealthState = "healthy" | "unhealthy" | "unknown"
+
+export type ModelConfigView = {
+  provider: string
+  api_type: string
+  model_name: string
+  endpoint: string
+  api_key_masked: string
+  active_role: string
+  healthy: boolean
+}
+
+export type ModelConfigInput = {
+  provider: string
+  api_type: string
+  api_key: string
+  model_name: string
+  endpoint?: string
+}
+
+export type AccessKey = {
+  id: string
+  key: string
+  name: string
+  status: "active" | "disabled"
+  request_count: number
+  input_tokens: number
+  output_tokens: number
+  error_count: number
+  created_at: string
+  last_used_at: string | null
+}
+
+export type KnowledgeDocument = {
+  id: number
+  filename: string
+  size: number
+  chunk_count: number
+  status: DocumentStatus
+  error: string
+  created_at: string
+}
+
+export type DocumentStatus = "processing" | "ready" | "error"
+
+export type KnowledgeStatus = {
+  total_chunks: number
+  total_files: number
+  last_update: string
+}
+
+export type RetrievalResult = {
+  query: string
+  match: string
+  score: number
+}
+
+export type SystemStatus = {
+  healthy: boolean
+  needs_setup?: boolean
+  active_model?: ModelConfigView
+  active_pri?: ModelConfigView | null
+  active_sec?: ModelConfigView | null
+  active_rag?: ModelConfigView | null
+  key_summary?: UsageSummary
+  rag_summary?: RagSummary
+}
+
+export type UsageSummary = {
+  request_count: number
+  error_count: number
+}
+
+export type RagSummary = {
+  document_count: number
+  ready_count: number
+}
+
+export type ActivationInput = {
+  primary: string
+  secondary: string
+  embedding: string
+}
+
+export type ModelTestInput = ModelConfigInput
+
+export type ModelTestResult = {
+  reachable: boolean
+}
+
+export type ApiKeyView = {
+  id: string
+  key: string
+  name: string
+  status: "active" | "disabled"
+  request_count: number
+  input_tokens: number
+  output_tokens: number
+  error_count: number
+  created_at: string
+  last_used_at: string | null
+}
+
+export type UsageRange = "7d" | "30d"
+
+export type DailyKeyUsage = {
+  date: string
+  request_count: number
+  input_tokens: number
+  output_tokens: number
+  error_count: number
+}
+
+export type KeyUsage = {
+  key: ApiKeyView
+  daily: DailyKeyUsage[]
+}
+
+export type PolicyConfig = {
+  rag_slider: number
+}
+
+export type SystemConfig = {
+  endpoint_ip: string
+  endpoint_port: string
+  webui_ip: string
+  webui_port: string
+  domain_name: string
+  max_total_conns: number
+  max_conns_per_ip: number
+  cert_file: string
+  key_file: string
+}
+
+export type DiagnosticStatus = "ok" | "error" | "unknown"
+
+export type DiagnosticCheck = {
+  key: string
+  label: string
+  status: DiagnosticStatus
+}
+
+export type Diagnostics = {
+  checks: DiagnosticCheck[]
+  build: string
+}
+
+export type AuditEvent = {
+  id: number
+  actor: string
+  action: string
+  resource_type: string
+  resource_id: string
+  result: string
+  created_at: string
+}

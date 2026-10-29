@@ -1,0 +1,77 @@
+import { request } from "./http.uts"
+import type { ApiEnvelope } from "../types/api.uts"
+import type {
+  ActivationInput,
+  ModelConfigInput,
+  ModelConfigView,
+  ModelTestInput,
+  ModelTestResult,
+} from "../types/domain.uts"
+
+type RawModel = {
+  provider?: string
+  api_type?: string
+  model_name?: string
+  api_key?: string
+  api_key_masked?: string
+  ip_port?: string
+  endpoint?: string
+}
+
+function normalizeModel(raw: RawModel): ModelConfigView {
+  return {
+    provider: raw.provider || "",
+    api_type: raw.api_type || "",
+    model_name: raw.model_name || "",
+    endpoint: raw.endpoint || raw.ip_port || "",
+    api_key_masked: raw.api_key_masked || raw.api_key || "",
+    active_role: "未激活",
+    healthy: false,
+  }
+}
+
+function jsonBody(value: unknown): string {
+  return JSON.stringify(value)
+}
+
+export async function listModels(): Promise<ModelConfigView[]> {
+  const response = await request<RawModel[]>("/api/models/get")
+  return (response.data || []).map(normalizeModel)
+}
+
+export async function saveModel(input: ModelConfigInput): Promise<void> {
+  await request<null>("/api/models/save", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: jsonBody({
+      provider: input.provider,
+      api_type: input.api_type,
+      api_key: input.api_key,
+      model_name: input.model_name,
+      ip_port: input.endpoint || "",
+    }),
+  })
+}
+
+export async function activateModels(input: ActivationInput): Promise<void> {
+  await request<null>("/api/models/activate", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: jsonBody({ Pri: input.primary, Sec: input.secondary, RAG: input.embedding }),
+  })
+}
+
+export async function testModel(input: ModelTestInput): Promise<ModelTestResult> {
+  const response = await request<ModelTestResult>("/api/models/test", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: jsonBody({
+      provider: input.provider,
+      api_type: input.api_type,
+      api_key: input.api_key,
+      model_name: input.model_name,
+      ip_port: input.endpoint || "",
+    }),
+  })
+  return response.data
+}

@@ -1,0 +1,43 @@
+<template>
+  <view class="tabbar">
+    <view class="tab active" @click="go('/pages/overview/overview')">
+      <text class="tab-icon">⌂</text>
+      <text>概览</text>
+    </view>
+    <view class="tab" @click="go('/pages/models/models')">
+      <text class="tab-icon">•</text>
+      <text>模型</text>
+    </view>
+    <view class="tab" @click="go('/pages/access-keys/access-keys')">
+      <text class="tab-icon">#</text>
+      <text>Key</text>
+    </view>
+    <view class="tab" @click="go('/pages/knowledge/knowledge')">
+      <text class="tab-icon">◇</text>
+      <text>知识库</text>
+    </view>
+    <view class="tab" @click="go('/pages/system/system')">
+      <text class="tab-icon">⚙</text>
+      <text>系统</text>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+function go(url: string): void {
+  uni.navigateTo({ url })
+}
+</script>
+
+<style>
+.tabbar {
+  display: none;
+  position: fixed; left: 0; right: 0; bottom: 0; height: 58px;
+  flex-direction: row; justify-content: space-around; background-color: #ffffff;
+  border-top: 1px solid #eaecf0; z-index: 10;
+}
+.tab { align-items: center; justify-content: center; color: #667085; font-size: 11px; width: 25%; }
+.tab.active { color: #175cd3; }
+.tab-icon { font-size: 17px; line-height: 20px; }
+@media (max-width: 767px) { .tabbar { display: flex; } }
+</style>

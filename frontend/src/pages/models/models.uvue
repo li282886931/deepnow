@@ -1,0 +1,143 @@
+<template>
+  <AppShell title="模型管理">
+    <view class="page">
+      <view class="page-heading">
+        <view>
+          <text class="eyebrow">MODEL MANAGEMENT</text>
+          <text class="heading">模型配置</text>
+          <text class="description">管理上游模型连接，并分别控制主模型、备用模型和 Embedding。</text>
+        </view>
+        <view class="heading-actions">
+          <button class="secondary" :disabled="loading" @click="load">刷新</button>
+          <button class="primary" @click="edit">新增模型</button>
+        </view>
+      </view>
+
+      <ErrorState v-if="errorMessage && models.length === 0" title="模型列表加载失败" :message="errorMessage" :retry="load" />
+      <OperationResult v-else-if="errorMessage" :message="errorMessage" tone="info" />
+      <view v-if="models.length === 0 && !loading" class="empty-card">
+        <text>暂无模型配置</text>
+        <button class="primary empty-action" @click="edit">添加第一个模型</button>
+      </view>
+      <view v-else class="model-list">
+        <view v-for="model in models" :key="model.provider + model.api_type" class="model-row">
+          <view class="model-main">
+            <text class="model-name">{{ model.model_name }}</text>
+            <text class="model-subtitle">{{ model.provider }} · {{ model.api_type }}</text>
+          </view>
+          <view class="model-detail"><text>{{ model.api_key_masked || "未配置 Key" }}</text></view>
+          <view class="model-detail endpoint"><text>{{ model.endpoint || "默认 Endpoint" }}</text></view>
+          <StatusBadge :label="model.active_role" :tone="model.active_role === '未激活' ? 'neutral' : 'success'" />
+          <StatusBadge :label="model.healthy ? '正常' : '未检测'" :tone="model.healthy ? 'success' : 'neutral'" />
+          <button class="row-action" @click="editModel(model)">编辑</button>
+          <button v-if="model.api_type === 'LM'" class="activate-action" :disabled="activating" @click="activate(model)">设为主模型</button>
+        </view>
+      </view>
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { onMounted, ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import ErrorState from "../../components/ErrorState.uvue"
+import OperationResult from "../../components/OperationResult.uvue"
+import StatusBadge from "../../components/StatusBadge.uvue"
+import { activateModels, listModels } from "../../services/models.uts"
+import { getSystemStatus } from "../../services/system.uts"
+import type { ModelConfigView } from "../../types/domain.uts"
+
+const models = ref<ModelConfigView[]>([])
+const loading = ref(true)
+const activating = ref(false)
+const errorMessage = ref("")
+
+async function load(): Promise<void> {
+  loading.value = true
+  errorMessage.value = ""
+  try {
+    const [listed, status] = await Promise.all([listModels(), getSystemStatus()])
+    const active = [
+      { model: status.active_pri, role: "primary" },
+      { model: status.active_sec, role: "secondary" },
+      { model: status.active_rag, role: "embedding" },
+    ]
+    models.value = listed.map((model) => {
+      const match = active.find((item) =>
+        item.model?.provider === model.provider && item.model?.api_type === model.api_type)
+      return {
+        ...model,
+        active_role: match?.role || "未激活",
+        healthy: match?.model?.healthy || false,
+      }
+    })
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "无法读取模型列表"
+  } finally {
+    loading.value = false
+  }
+}
+
+function edit(): void {
+  uni.navigateTo({ url: "/pages/models/edit" })
+}
+
+function editModel(model: ModelConfigView): void {
+  uni.navigateTo({
+    url: `/pages/models/edit?provider=${encodeURIComponent(model.provider)}&api_type=${encodeURIComponent(model.api_type)}`,
+  })
+}
+
+async function activate(model: ModelConfigView): Promise<void> {
+  activating.value = true
+  errorMessage.value = ""
+  try {
+    await activateModels({
+      primary: model.provider,
+      secondary: models.value.find((item) => item.active_role === "secondary")?.provider || "",
+      embedding: models.value.find((item) => item.active_role === "embedding")?.provider || "",
+    })
+    await load()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "模型启用失败"
+  } finally {
+    activating.value = false
+  }
+}
+
+onMounted(load)
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+.heading-actions { flex-direction: row; gap: 8px; margin-left: 16px; }
+button { height: 34px; line-height: 34px; margin: 7px 0 0; padding: 0 13px; font-size: 12px; border-radius: 4px; }
+.primary { color: #ffffff; background-color: #175cd3; }
+.secondary { color: #344054; background-color: #ffffff; border: 1px solid #d0d5dd; }
+.model-list { margin-top: 25px; background-color: #ffffff; border: 1px solid #eaecf0; border-radius: 5px; }
+.model-row { flex-direction: row; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid #f2f4f7; }
+.model-row:last-child { border-bottom-width: 0; }
+.model-main { flex: 1.4; min-width: 0; }
+.model-name { display: block; color: #344054; font-size: 14px; font-weight: 600; }
+.model-subtitle { display: block; color: #667085; font-size: 12px; margin-top: 4px; }
+.model-detail { width: 125px; color: #667085; font-size: 12px; overflow: hidden; }
+.endpoint { width: 150px; }
+.row-action { color: #175cd3; background-color: #eff8ff; margin: 0; }
+.activate-action { color: #147d55; background-color: #ecfdf3; margin: 0; }
+.empty-card { align-items: center; margin-top: 25px; padding: 46px 20px; background-color: #ffffff; border: 1px solid #eaecf0; border-radius: 5px; color: #667085; font-size: 13px; }
+.empty-action { margin-top: 16px; }
+@media (max-width: 767px) {
+  .page { padding: 20px 16px 30px; }
+  .page-heading { flex-direction: column; }
+  .heading-actions { margin-left: 0; margin-top: 10px; }
+  .model-row { flex-wrap: wrap; gap: 8px 12px; }
+  .model-main { width: 100%; flex: none; }
+  .model-detail { width: auto; flex: 1; }
+  .endpoint { display: none; }
+  .activate-action, .row-action { padding-left: 9px; padding-right: 9px; }
+}
+</style>

@@ -1,0 +1,20 @@
+export type NoticeTone = "success" | "error" | "info"
+
+export type ConsoleNotice = {
+  tone: NoticeTone
+  message: string
+}
+
+let currentNotice: ConsoleNotice | null = null
+
+export function setNotice(notice: ConsoleNotice): void {
+  currentNotice = notice
+}
+
+export function clearNotice(): void {
+  currentNotice = null
+}
+
+export function getNotice(): ConsoleNotice | null {
+  return currentNotice
+}

@@ -18,9 +18,9 @@ type Locks struct {
 }
 
 type Lock struct {
-	locks   *Locks
+	locks  *Locks
 	tokenID string
-	owner   string
+	owner  string
 }
 
 func NewLocks(client *Client) *Locks {

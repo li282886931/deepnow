@@ -1,0 +1,124 @@
+import { request } from "./http.uts"
+import type { ConsoleErrorCode } from "../types/api.uts"
+import type {
+  DiagnosticCheck,
+  Diagnostics,
+  PolicyConfig,
+  SystemConfig,
+} from "../types/domain.uts"
+import { ConsoleError } from "../utils/errors.uts"
+
+type RawDiagnostics = {
+  database?: Record<string, { ok?: boolean }>
+  active_model?: boolean
+  embedding_model?: boolean
+  build?: string
+}
+
+export type ValidationErrors = Record<string, string>
+
+export function defaultPolicyConfig(): PolicyConfig {
+  return { rag_slider: 1 }
+}
+
+export function validatePolicyConfig(value: PolicyConfig): ValidationErrors {
+  return value.rag_slider >= 0 && value.rag_slider <= 2 && Number.isInteger(value.rag_slider)
+    ? {}
+    : { rag_slider: "RAG 策略必须是 0、1 或 2" }
+}
+
+function validPort(value: string): boolean {
+  if (!/^\d+$/.test(value.trim())) return false
+  const port = Number(value)
+  return port >= 1 && port <= 65535
+}
+
+export function validateSystemConfig(value: SystemConfig): ValidationErrors {
+  const errors: ValidationErrors = {}
+  if (!validPort(value.endpoint_port) || !validPort(value.webui_port)) {
+    errors.endpoint_port = "端口必须是 1 到 65535 之间的数字"
+  }
+  if (!value.endpoint_ip.trim()) errors.endpoint_ip = "服务地址不能为空"
+  if (!value.webui_ip.trim()) errors.webui_ip = "管理地址不能为空"
+  if (value.max_total_conns < 1) errors.max_total_conns = "总连接数必须大于 0"
+  if (value.max_conns_per_ip < 1) errors.max_conns_per_ip = "单 IP 连接数必须大于 0"
+  return errors
+}
+
+function validationError(errors: ValidationErrors): ConsoleError {
+  const messages: string[] = []
+  for (const key in errors) {
+    messages.push(errors[key])
+  }
+  const message = messages.join("；")
+  return new ConsoleError("validation" as ConsoleErrorCode, message || "配置校验失败", 400)
+}
+
+export async function getRules(): Promise<PolicyConfig> {
+  const response = await request<PolicyConfig>("/api/rules/get")
+  return { rag_slider: response.data.rag_slider }
+}
+
+export async function saveRules(value: PolicyConfig): Promise<void> {
+  const errors = validatePolicyConfig(value)
+  if (Object.keys(errors).length > 0) throw validationError(errors)
+  await request<null>("/api/rules/save", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(value),
+  })
+}
+
+export async function getConfig(): Promise<SystemConfig> {
+  const response = await request<SystemConfig>("/api/config/get")
+  return response.data
+}
+
+export async function saveConfig(value: SystemConfig): Promise<void> {
+  const errors = validateSystemConfig(value)
+  if (Object.keys(errors).length > 0) throw validationError(errors)
+  await request<null>("/api/config/save", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(value),
+  })
+}
+
+export function diagnosticTone(value: { status: string }): "success" | "danger" | "neutral" {
+  if (value.status === "ok") return "success"
+  if (value.status === "error") return "danger"
+  return "neutral"
+}
+
+export function normalizeDiagnostics(raw: RawDiagnostics): Diagnostics {
+  const checks: DiagnosticCheck[] = []
+  const databases = [
+    ["system", "系统数据库"],
+    ["keys", "Key 数据库"],
+    ["rag", "知识库数据库"],
+  ]
+  for (const [key, label] of databases) {
+    const value = raw.database?.[key]
+    checks.push({
+      key: `database.${key}`,
+      label,
+      status: value ? (value.ok === true ? "ok" : "error") : "unknown",
+    })
+  }
+  checks.push({
+    key: "active_model",
+    label: "主模型",
+    status: raw.active_model === true ? "ok" : "error",
+  })
+  checks.push({
+    key: "embedding_model",
+    label: "Embedding 模型",
+    status: raw.embedding_model === true ? "ok" : "error",
+  })
+  return { checks, build: raw.build || "未记录" }
+}
+
+export async function getDiagnostics(): Promise<Diagnostics> {
+  const response = await request<RawDiagnostics>("/api/diagnostics")
+  return normalizeDiagnostics(response.data)
+}

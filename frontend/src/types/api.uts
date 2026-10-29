@@ -1,0 +1,21 @@
+export type ApiEnvelope<T> = {
+  success: boolean
+  message: string
+  data: T
+  request_id: string
+}
+
+export type ConsoleErrorCode =
+  | "session_expired"
+  | "validation"
+  | "conflict"
+  | "upstream"
+  | "server"
+  | "network"
+
+export type RequestOptions = {
+  method?: string
+  headers?: Record<string, string>
+  body?: string | FormData
+  signal?: AbortSignal
+}

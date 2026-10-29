@@ -1,0 +1,51 @@
+import { request } from "./http.uts"
+import type { ApiEnvelope } from "../types/api.uts"
+import type { ModelConfigView, SystemStatus } from "../types/domain.uts"
+
+type RawSystemStatus = {
+  needs_setup?: boolean
+  active_pri?: RawModel | null
+  active_sec?: RawModel | null
+  active_rag?: RawModel | null
+}
+
+type RawModel = {
+  provider?: string
+  api_type?: string
+  model_name?: string
+  api_key?: string
+  ip_port?: string
+}
+
+function normalizeModel(raw: RawModel | null | undefined, role: string): ModelConfigView | null {
+  if (!raw) return null
+  return {
+    provider: raw.provider || "",
+    api_type: raw.api_type || "",
+    model_name: raw.model_name || "",
+    endpoint: raw.ip_port || "",
+    api_key_masked: raw.api_key || "",
+    active_role: role,
+    healthy: true,
+  }
+}
+
+export async function getSystemStatus(): Promise<SystemStatus> {
+  const response = await request<RawSystemStatus>("/api/system/status")
+  const primary = normalizeModel(response.data.active_pri, "primary")
+  const secondary = normalizeModel(response.data.active_sec, "secondary")
+  const embedding = normalizeModel(response.data.active_rag, "embedding")
+  return {
+    healthy: primary !== null,
+    needs_setup: response.data.needs_setup,
+    active_model: primary || secondary || embedding || undefined,
+    active_pri: primary,
+    active_sec: secondary,
+    active_rag: embedding,
+  }
+}
+
+export async function getBuildInfo(): Promise<string> {
+  const response = await request<string>("/api/system/build")
+  return response.data
+}

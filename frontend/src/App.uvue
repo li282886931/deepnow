@@ -1,0 +1,14 @@
+<template>
+  <view class="app-root">
+    <slot />
+  </view>
+</template>
+
+<script setup lang="uts">
+</script>
+
+<style>
+.app-root {
+  flex: 1;
+}
+</style>

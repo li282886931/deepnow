@@ -1,0 +1,1 @@
+{"type":"click","text":"C\n      \n        独立 Token 服务\n        Token 工厂与 DeepNow 完全独立，通过 Gateway Adapter 接入；适合长期平台化，但首期交付链路最长。","choice":"standalone-service","id":null,"timestamp":1793257925672}

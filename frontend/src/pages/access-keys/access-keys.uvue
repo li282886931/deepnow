@@ -1,0 +1,199 @@
+<template>
+  <AppShell title="访问控制">
+    <view class="page">
+      <view class="page-heading">
+        <view>
+          <text class="eyebrow">ACCESS CONTROL</text>
+          <text class="heading">API Key</text>
+          <text class="description">列表只显示脱敏 Key；新生成的明文仅在本次结果中显示。</text>
+        </view>
+        <view class="heading-actions">
+          <button class="secondary" :disabled="loading" @click="load">刷新</button>
+          <button class="primary" :disabled="busy" @click="generate">生成 5 个</button>
+        </view>
+      </view>
+
+      <OperationResult :message="message" :tone="messageTone" />
+      <ErrorState v-if="errorMessage && keys.length === 0" title="Key 列表加载失败" :message="errorMessage" :retry="load" />
+
+      <view v-if="generatedKeys.length > 0" class="reveal-card">
+        <text class="reveal-title">请立即保存新生成的 Key</text>
+        <text class="reveal-warning">离开或确认后将不再显示明文。</text>
+        <text class="secret-value">{{ generatedSecret?.value || "" }}</text>
+        <view class="reveal-actions">
+          <button class="secondary" @click="copyGenerated">复制</button>
+          <button class="primary" @click="acknowledgeGenerated">我已保存</button>
+        </view>
+      </view>
+
+      <view class="toolbar">
+        <input v-model="importText" class="import-input" placeholder="粘贴 Key，每行一个" />
+        <button class="secondary" :disabled="busy || !importText.trim()" @click="importKeyValues">导入</button>
+        <button class="danger" :disabled="busy || selectedIds.length === 0" @click="confirmDelete = true">删除所选</button>
+      </view>
+
+      <view v-if="keys.length === 0 && !loading" class="empty-card">
+        <EmptyState title="暂无 API Key" description="生成或导入一个 Key 后，它会出现在这里。" />
+      </view>
+      <view v-else class="key-list">
+        <view v-for="item in keys" :key="item.id" class="key-row">
+          <view class="select-box" :class="{ selected: isSelected(item.id) }" @click="toggle(item.id)">
+            <text v-if="isSelected(item.id)">✓</text>
+          </view>
+          <view class="key-main">
+            <text class="key-value">{{ item.key }}</text>
+            <text class="key-meta">{{ item.name || "未命名 Key" }} · 创建于 {{ formatTimestamp(item.created_at) }}</text>
+          </view>
+          <view class="key-stats">
+            <text>{{ formatCount(item.request_count) }} 请求</text>
+            <text>{{ formatCount(item.error_count) }} 错误</text>
+          </view>
+          <StatusBadge :label="item.status === 'active' ? '启用' : '停用'" :tone="item.status === 'active' ? 'success' : 'neutral'" />
+          <button class="row-action" @click="viewUsage(item.id)">使用量</button>
+        </view>
+      </view>
+
+      <ConfirmDialog
+        :visible="confirmDelete"
+        title="删除 API Key"
+        :message="`确定删除已选择的 ${selectedIds.length} 个 Key？删除后无法恢复。`"
+        @cancel="confirmDelete = false"
+        @confirm="deleteSelected"
+      />
+    </view>
+  </AppShell>
+</template>
+
+<script setup lang="uts">
+import { onMounted, ref } from "vue"
+import AppShell from "../../layouts/AppShell.uvue"
+import ConfirmDialog from "../../components/ConfirmDialog.uvue"
+import EmptyState from "../../components/EmptyState.uvue"
+import ErrorState from "../../components/ErrorState.uvue"
+import OperationResult from "../../components/OperationResult.uvue"
+import StatusBadge from "../../components/StatusBadge.uvue"
+import { createOneTimeSecret, deleteKeys, generateKeys, importKeys, listKeys } from "../../services/keys.uts"
+import type { OneTimeSecret } from "../../services/keys.uts"
+import type { ApiKeyView } from "../../types/domain.uts"
+import { formatCount, formatTimestamp } from "../../utils/format.uts"
+
+const keys = ref<ApiKeyView[]>([])
+const selectedIds = ref<string[]>([])
+const generatedKeys = ref<string[]>([])
+const generatedSecret = ref<OneTimeSecret | null>(null)
+const importText = ref("")
+const loading = ref(true)
+const busy = ref(false)
+const confirmDelete = ref(false)
+const errorMessage = ref("")
+const message = ref("")
+const messageTone = ref<"success" | "error" | "info">("info")
+
+function isSelected(id: string): boolean { return selectedIds.value.indexOf(id) >= 0 }
+function toggle(id: string): void {
+  selectedIds.value = isSelected(id)
+    ? selectedIds.value.filter((item) => item !== id)
+    : [...selectedIds.value, id]
+}
+
+async function load(): Promise<void> {
+  loading.value = true
+  errorMessage.value = ""
+  try { keys.value = await listKeys() } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : "无法读取 Key 列表"
+  } finally { loading.value = false }
+}
+
+async function generate(): Promise<void> {
+  busy.value = true
+  try {
+    const values = await generateKeys()
+    generatedKeys.value = values
+    generatedSecret.value = createOneTimeSecret(values.join("\n"))
+    message.value = "Key 已生成，请在确认前保存明文"
+    messageTone.value = "success"
+    await load()
+  }
+  catch (error) { message.value = error instanceof Error ? error.message : "生成失败"; messageTone.value = "error" }
+  finally { busy.value = false }
+}
+
+function acknowledgeGenerated(): void {
+  generatedSecret.value?.acknowledge()
+  generatedSecret.value = null
+  generatedKeys.value = []
+  message.value = "明文 Key 已清除"
+  messageTone.value = "info"
+}
+
+function copyGenerated(): void {
+  if (!generatedSecret.value) return
+  const clipboard = uni as unknown as { setClipboardData: (options: { data: string }) => void }
+  clipboard.setClipboardData({ data: generatedSecret.value.value })
+}
+
+async function importKeyValues(): Promise<void> {
+  const values = importText.value.split(/\r?\n/).map((value) => value.trim()).filter((value) => value.length > 0)
+  if (values.length === 0) return
+  busy.value = true
+  try { await importKeys(values); importText.value = ""; message.value = "Key 已导入"; messageTone.value = "success"; await load() }
+  catch (error) { message.value = error instanceof Error ? error.message : "导入失败"; messageTone.value = "error" }
+  finally { busy.value = false }
+}
+
+async function deleteSelected(): Promise<void> {
+  confirmDelete.value = false
+  busy.value = true
+  try { await deleteKeys(selectedIds.value); selectedIds.value = []; message.value = "Key 已删除"; messageTone.value = "success"; await load() }
+  catch (error) { message.value = error instanceof Error ? error.message : "删除失败"; messageTone.value = "error" }
+  finally { busy.value = false }
+}
+
+function viewUsage(id: string): void {
+  uni.navigateTo({ url: `/pages/access-keys/usage?key_id=${encodeURIComponent(id)}` })
+}
+
+onMounted(load)
+</script>
+
+<style>
+.page { padding: 28px 30px 40px; }
+.page-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+.eyebrow { display: block; color: #98a2b3; font-size: 10px; letter-spacing: 1px; }
+.heading { display: block; color: #101828; font-size: 25px; font-weight: 650; margin-top: 5px; }
+.description { display: block; color: #667085; font-size: 13px; margin-top: 7px; }
+.heading-actions, .reveal-actions, .toolbar { flex-direction: row; gap: 8px; }
+button { height: 34px; line-height: 34px; margin: 7px 0 0; padding: 0 13px; font-size: 12px; border-radius: 4px; }
+.primary { color: #fff; background-color: #175cd3; }
+.secondary { color: #344054; background-color: #fff; border: 1px solid #d0d5dd; }
+.danger { color: #b42318; background-color: #fff; border: 1px solid #fecdca; }
+.reveal-card { margin-top: 22px; padding: 16px; background-color: #fffaeb; border: 1px solid #fedf89; border-radius: 5px; }
+.reveal-title, .reveal-warning, .secret-value { display: block; }
+.reveal-title { color: #93370d; font-size: 14px; font-weight: 600; }
+.reveal-warning { color: #b54708; font-size: 12px; margin-top: 5px; }
+.secret-value { color: #7a2e0b; font-family: monospace; font-size: 12px; line-height: 20px; margin-top: 12px; }
+.reveal-actions { justify-content: flex-end; margin-top: 6px; }
+.toolbar { margin-top: 22px; align-items: center; }
+.import-input { flex: 1; height: 34px; box-sizing: border-box; padding: 0 10px; border: 1px solid #d0d5dd; border-radius: 4px; font-size: 12px; background-color: #fff; }
+.key-list { margin-top: 12px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; }
+.key-row { flex-direction: row; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #f2f4f7; }
+.key-row:last-child { border-bottom-width: 0; }
+.select-box { width: 18px; height: 18px; line-height: 18px; text-align: center; color: #fff; border: 1px solid #d0d5dd; border-radius: 3px; }
+.select-box.selected { background-color: #175cd3; border-color: #175cd3; }
+.key-main { flex: 1; min-width: 0; }
+.key-value { display: block; color: #344054; font-family: monospace; font-size: 13px; }
+.key-meta, .key-stats { display: block; color: #667085; font-size: 12px; margin-top: 5px; }
+.key-stats { width: 110px; line-height: 18px; margin-top: 0; }
+.row-action { color: #175cd3; background-color: #eff8ff; margin: 0; }
+.empty-card { margin-top: 20px; background-color: #fff; border: 1px solid #eaecf0; border-radius: 5px; }
+@media (max-width: 767px) {
+  .page { padding: 20px 16px 30px; }
+  .page-heading { flex-direction: column; }
+  .heading-actions { margin-top: 10px; }
+  .toolbar { flex-wrap: wrap; }
+  .import-input { width: 100%; flex-basis: 100%; }
+  .key-row { flex-wrap: wrap; }
+  .key-main { width: calc(100% - 34px); flex: none; }
+  .key-stats { margin-left: 30px; width: auto; flex: 1; }
+}
+</style>

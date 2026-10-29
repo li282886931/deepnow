@@ -1,0 +1,37 @@
+<template>
+  <view class="status-badge" :class="'status-' + tone">
+    <text class="status-dot"></text>
+    <text>{{ label }}</text>
+  </view>
+</template>
+
+<script setup lang="uts">
+const props = defineProps<{
+  label: string
+  tone?: "success" | "warning" | "error" | "neutral"
+}>()
+
+const tone = props.tone || "neutral"
+</script>
+
+<style>
+.status-badge {
+  align-items: center;
+  flex-direction: row;
+  gap: 6px;
+  font-size: 12px;
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #98a2b3;
+}
+.status-success { color: #147d55; }
+.status-success .status-dot { background-color: #22a06b; }
+.status-warning { color: #9a6700; }
+.status-warning .status-dot { background-color: #e2a400; }
+.status-error { color: #c43232; }
+.status-error .status-dot { background-color: #d64545; }
+.status-neutral { color: #667085; }
+</style>

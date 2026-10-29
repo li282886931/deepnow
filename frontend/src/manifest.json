@@ -1,0 +1,15 @@
+{
+  "name": "DeepNow Admin Console",
+  "appid": "__UNI__DEEPNOW_ADMIN",
+  "description": "DeepNow administration console",
+  "versionName": "0.1.0",
+  "versionCode": "1",
+  "transformPx": false,
+  "uniStatistics": {
+    "enable": false
+  },
+  "uni-app-x": {
+    "compilerVersion": "4.2.0",
+    "targets": ["web"]
+  }
+}

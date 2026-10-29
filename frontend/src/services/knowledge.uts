@@ -1,0 +1,75 @@
+import { request, upload } from "./http.uts"
+import type { DocumentStatus, KnowledgeDocument, KnowledgeStatus, RetrievalResult } from "../types/domain.uts"
+
+type RawKnowledgeDocument = {
+  id?: number
+  filename?: string
+  status?: string
+  size?: number
+  chunk_count?: number
+  error_message?: string
+  created_at?: string
+}
+
+type RawKnowledgeStatus = {
+  total_chunks?: number
+  total_files?: number
+  last_update?: string
+}
+
+function normalizeStatus(value: string | undefined): DocumentStatus {
+  if (value === "ready" || value === "error") return value
+  return "processing"
+}
+
+function normalizeDocument(raw: RawKnowledgeDocument): KnowledgeDocument {
+  return {
+    id: raw.id || 0,
+    filename: raw.filename || "",
+    status: normalizeStatus(raw.status),
+    size: raw.size || 0,
+    chunk_count: raw.chunk_count || 0,
+    error: raw.error_message || "",
+    created_at: raw.created_at || "",
+  }
+}
+
+export function formatDocumentStatus(status: DocumentStatus): {
+  label: string
+  tone: "success" | "warning" | "error"
+} {
+  if (status === "ready") return { label: "已就绪", tone: "success" }
+  if (status === "error") return { label: "处理失败", tone: "error" }
+  return { label: "处理中", tone: "warning" }
+}
+
+export async function getKnowledgeStatus(): Promise<KnowledgeStatus> {
+  const response = await request<RawKnowledgeStatus>("/api/rag/status")
+  return {
+    total_chunks: response.data.total_chunks || 0,
+    total_files: response.data.total_files || 0,
+    last_update: response.data.last_update || "",
+  }
+}
+
+export async function getKnowledgeDocuments(): Promise<KnowledgeDocument[]> {
+  const response = await request<RawKnowledgeDocument[]>("/api/rag/documents")
+  return (response.data || []).map(normalizeDocument)
+}
+
+export async function uploadKnowledgeDocument(file: File): Promise<void> {
+  await upload<null>("/api/rag/upload", file)
+}
+
+export async function deleteKnowledgeDocument(id: number): Promise<void> {
+  await request<null>(`/api/rag/documents/${id}`, { method: "DELETE" })
+}
+
+export async function testKnowledgeRetrieval(query: string): Promise<RetrievalResult> {
+  const response = await request<RetrievalResult>("/api/rag/test", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query }),
+  })
+  return response.data
+}

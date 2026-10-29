@@ -1,0 +1,1 @@
+import"./domain.C5ehX9fn.js";UTS.UTSType;function n(n=null){return(n||0).toLocaleString("en-US")}function e(n=null){if(!n)return"未记录";const e=new Date(n);return Number.isNaN(e.getTime())?"未记录":e.toLocaleString("zh-CN",new UTSJSONObject({hour12:!1}))}export{n as a,e as f};

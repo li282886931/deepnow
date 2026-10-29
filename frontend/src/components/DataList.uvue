@@ -1,0 +1,49 @@
+<template>
+  <view class="data-list">
+    <view v-if="rows.length === 0" class="list-empty"><text>暂无数据</text></view>
+    <view v-for="row in rows" :key="row.key" class="data-row">
+      <view class="row-main">
+        <text class="row-title">{{ row.title }}</text>
+        <text v-if="row.subtitle" class="row-subtitle">{{ row.subtitle }}</text>
+      </view>
+      <view class="row-meta">
+        <text v-if="row.meta" class="row-meta-text">{{ row.meta }}</text>
+        <StatusBadge :label="row.statusLabel" :tone="row.statusTone" />
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import StatusBadge from "./StatusBadge.uvue"
+
+type DataRow = {
+  key: string
+  title: string
+  subtitle?: string
+  meta?: string
+  statusLabel: string
+  statusTone: "success" | "warning" | "error" | "neutral"
+}
+
+defineProps<{ rows: DataRow[] }>()
+</script>
+
+<style>
+.data-list { background-color: #ffffff; border: 1px solid #eaecf0; border-radius: 5px; }
+.data-row {
+  flex-direction: row; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid #f2f4f7;
+}
+.data-row:last-child { border-bottom-width: 0; }
+.row-main { min-width: 0; }
+.row-title { display: block; color: #344054; font-size: 14px; font-weight: 600; }
+.row-subtitle { display: block; color: #667085; font-size: 12px; margin-top: 5px; }
+.row-meta { flex-direction: row; align-items: center; gap: 14px; margin-left: 12px; }
+.row-meta-text { color: #667085; font-size: 12px; }
+.list-empty { align-items: center; padding: 35px; color: #98a2b3; font-size: 13px; }
+@media (max-width: 767px) {
+  .data-row { align-items: flex-start; }
+  .row-meta { flex-direction: column; align-items: flex-end; gap: 5px; }
+}
+</style>

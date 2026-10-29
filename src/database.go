@@ -8,13 +8,16 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
 
 var sysDB, keyDB, ragDB *sql.DB
 var authKeys sync.Map
+var keyUsageMu sync.Mutex
 
 type ModelConfig struct {
 	Provider  string
@@ -24,35 +27,237 @@ type ModelConfig struct {
 	IpPort    string
 }
 
-func initDatabases() {
-	sysDB, _ = sql.Open("sqlite", "system.db")
-	sysDB.Exec(`CREATE TABLE IF NOT EXISTS admin_users (username TEXT PRIMARY KEY, password TEXT)`)
-	sysDB.Exec(`CREATE TABLE IF NOT EXISTS model_configs (provider TEXT, api_type TEXT, api_key TEXT, model_name TEXT, ip_port TEXT, PRIMARY KEY(provider, api_type))`)
-	sysDB.Exec(`CREATE TABLE IF NOT EXISTS system_rules (key TEXT PRIMARY KEY, value TEXT)`)
-
-	var c int
-	sysDB.QueryRow(`SELECT count(*) FROM admin_users`).Scan(&c)
-	if c == 0 {
-		sysDB.Exec(`INSERT INTO admin_users VALUES ('admin', '12345')`)
+func initDatabases() error {
+	var err error
+	sysDB, err = sql.Open("sqlite", "system.db")
+	if err != nil {
+		return fmt.Errorf("打开 system.db 失败: %w", err)
+	}
+	if err := sysDB.Ping(); err != nil {
+		return fmt.Errorf("连接 system.db 失败: %w", err)
+	}
+	if _, err := sysDB.Exec(`CREATE TABLE IF NOT EXISTS admin_users (username TEXT PRIMARY KEY, password TEXT)`); err != nil {
+		return fmt.Errorf("创建 admin_users 失败: %w", err)
+	}
+	if _, err := sysDB.Exec(`CREATE TABLE IF NOT EXISTS model_configs (provider TEXT, api_type TEXT, api_key TEXT, model_name TEXT, ip_port TEXT, PRIMARY KEY(provider, api_type))`); err != nil {
+		return fmt.Errorf("创建 model_configs 失败: %w", err)
+	}
+	if _, err := sysDB.Exec(`CREATE TABLE IF NOT EXISTS system_rules (key TEXT PRIMARY KEY, value TEXT)`); err != nil {
+		return fmt.Errorf("创建 system_rules 失败: %w", err)
 	}
 
-	keyDB, _ = sql.Open("sqlite", "key.db")
-	keyDB.Exec(`CREATE TABLE IF NOT EXISTS access_keys (api_key TEXT PRIMARY KEY, used INTEGER, created_at DATETIME)`)
-	rows, _ := keyDB.Query(`SELECT api_key, used FROM access_keys`)
+	var c int
+	if err := sysDB.QueryRow(`SELECT count(*) FROM admin_users`).Scan(&c); err != nil {
+		return fmt.Errorf("读取管理员数量失败: %w", err)
+	}
+	if c == 0 {
+		defaultPassword, err := hashPassword("12345")
+		if err != nil {
+			defaultPassword = "12345"
+		}
+		if _, err := sysDB.Exec(`INSERT INTO admin_users VALUES ('admin', ?)`, defaultPassword); err != nil {
+			return fmt.Errorf("创建默认管理员失败: %w", err)
+		}
+	}
+
+	keyDB, err = sql.Open("sqlite", "key.db")
+	if err != nil {
+		return fmt.Errorf("打开 key.db 失败: %w", err)
+	}
+	if err := keyDB.Ping(); err != nil {
+		return fmt.Errorf("连接 key.db 失败: %w", err)
+	}
+	if err := migrateKeySchema(keyDB); err != nil {
+		return fmt.Errorf("迁移 key.db 表失败: %w", err)
+	}
+	rows, err := keyDB.Query(`SELECT api_key, used FROM access_keys`)
+	if err != nil {
+		return fmt.Errorf("加载 access_keys 失败: %w", err)
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var k string
 		var u int
-		rows.Scan(&k, &u)
+		if err := rows.Scan(&k, &u); err != nil {
+			return fmt.Errorf("读取 access_keys 失败: %w", err)
+		}
 		authKeys.Store(k, u)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历 access_keys 失败: %w", err)
+	}
 
-	os.MkdirAll("knowledge_base", 0755)
-	ragDB, _ = sql.Open("sqlite", "rag.db")
-	ragDB.Exec(`CREATE TABLE IF NOT EXISTS knowledge_index (id INTEGER PRIMARY KEY, chunk TEXT, source_file TEXT, embedding_json TEXT)`)
-	ragDB.Exec(`ALTER TABLE knowledge_index ADD COLUMN embedding_json TEXT`)
+	if err := os.MkdirAll("knowledge_base", 0755); err != nil {
+		return fmt.Errorf("创建 knowledge_base 目录失败: %w", err)
+	}
+	ragDB, err = sql.Open("sqlite", "rag.db")
+	if err != nil {
+		return fmt.Errorf("打开 rag.db 失败: %w", err)
+	}
+	if err := ragDB.Ping(); err != nil {
+		return fmt.Errorf("连接 rag.db 失败: %w", err)
+	}
+	if _, err := ragDB.Exec(`CREATE TABLE IF NOT EXISTS knowledge_index (id INTEGER PRIMARY KEY, chunk TEXT, source_file TEXT, embedding_json TEXT)`); err != nil {
+		return fmt.Errorf("创建 knowledge_index 失败: %w", err)
+	}
+	if _, err := ragDB.Exec(`ALTER TABLE knowledge_index ADD COLUMN embedding_json TEXT`); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+		return fmt.Errorf("迁移 knowledge_index 失败: %w", err)
+	}
+	if err := migrateRAGSchema(ragDB); err != nil {
+		return fmt.Errorf("迁移 rag.db 表失败: %w", err)
+	}
+	if err := migrateSystemSchema(sysDB); err != nil {
+		return fmt.Errorf("迁移 system.db 表失败: %w", err)
+	}
 
 	autoActivateModels()
+	return nil
+}
+
+func columnExists(db *sql.DB, table, column string) (bool, error) {
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM pragma_table_info(?) WHERE name=?`, table, column).Scan(&count); err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func addColumnIfMissing(db *sql.DB, table, column, definition string) error {
+	exists, err := columnExists(db, table, column)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
+	return err
+}
+
+func migrateKeySchema(db *sql.DB) error {
+	if db == nil {
+		return fmt.Errorf("database is nil")
+	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS access_keys (
+		api_key TEXT PRIMARY KEY,
+		used INTEGER NOT NULL DEFAULT 0,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`); err != nil {
+		return err
+	}
+	for _, column := range []struct {
+		name, definition string
+	}{
+		{"name", "TEXT NOT NULL DEFAULT ''"},
+		{"status", "TEXT NOT NULL DEFAULT 'active'"},
+		{"last_used_at", "DATETIME"},
+	} {
+		if err := addColumnIfMissing(db, "access_keys", column.name, column.definition); err != nil {
+			return fmt.Errorf("add access_keys.%s: %w", column.name, err)
+		}
+	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS key_usage_daily (
+		api_key TEXT NOT NULL,
+		usage_date TEXT NOT NULL,
+		request_count INTEGER NOT NULL DEFAULT 0,
+		input_tokens INTEGER NOT NULL DEFAULT 0,
+		output_tokens INTEGER NOT NULL DEFAULT 0,
+		error_count INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (api_key, usage_date)
+	)`); err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateRAGSchema(db *sql.DB) error {
+	if db == nil {
+		return fmt.Errorf("database is nil")
+	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS knowledge_documents (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		filename TEXT NOT NULL,
+		status TEXT NOT NULL,
+		file_size INTEGER NOT NULL DEFAULT 0,
+		chunk_count INTEGER NOT NULL DEFAULT 0,
+		error_message TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL
+	)`); err != nil {
+		return err
+	}
+	return nil
+}
+
+func migrateSystemSchema(db *sql.DB) error {
+	if db == nil {
+		return fmt.Errorf("database is nil")
+	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS audit_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		actor TEXT NOT NULL,
+		action TEXT NOT NULL,
+		resource_type TEXT NOT NULL,
+		resource_id TEXT NOT NULL DEFAULT '',
+		result TEXT NOT NULL,
+		created_at DATETIME NOT NULL
+	)`); err != nil {
+		return err
+	}
+	return nil
+}
+
+func recordKeyUsage(apiKey string, inputTokens, outputTokens int, failed bool) error {
+	if keyDB == nil {
+		return fmt.Errorf("key database is nil")
+	}
+	usageDate := time.Now().UTC().Format("2006-01-02")
+	errorCount := 0
+	if failed {
+		errorCount = 1
+	}
+	_, err := keyDB.Exec(`INSERT INTO key_usage_daily
+		(api_key, usage_date, request_count, input_tokens, output_tokens, error_count)
+		VALUES (?, ?, 1, ?, ?, ?)
+		ON CONFLICT(api_key, usage_date) DO UPDATE SET
+			request_count = request_count + 1,
+			input_tokens = input_tokens + excluded.input_tokens,
+			output_tokens = output_tokens + excluded.output_tokens,
+			error_count = error_count + excluded.error_count`,
+		apiKey, usageDate, inputTokens, outputTokens, errorCount)
+	return err
+}
+
+func writeAuditEvent(actor, action, resourceType, resourceID, result string) error {
+	if sysDB == nil {
+		return fmt.Errorf("system database is nil")
+	}
+	_, err := sysDB.Exec(`INSERT INTO audit_events
+		(actor, action, resource_type, resource_id, result, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		actor, action, resourceType, resourceID, result, time.Now().UTC())
+	return err
+}
+
+func createKnowledgeDocument(filename string) (int64, error) {
+	now := time.Now().UTC()
+	result, err := ragDB.Exec(`INSERT INTO knowledge_documents
+		(filename, status, created_at, updated_at) VALUES (?, 'processing', ?, ?)`,
+		filename, now, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+func updateKnowledgeDocument(id int64, status string, fileSize, chunkCount int, errorMessage string) error {
+	if len(errorMessage) > 500 {
+		errorMessage = errorMessage[:500]
+	}
+	_, err := ragDB.Exec(`UPDATE knowledge_documents
+		SET status=?, file_size=?, chunk_count=?, error_message=?, updated_at=?
+		WHERE id=?`, status, fileSize, chunkCount, errorMessage, time.Now().UTC(), id)
+	return err
 }
 
 func checkModelValid(apiType, provider string) bool {
@@ -177,7 +382,7 @@ func searchKnowledge(query string) (string, float64) {
 		return "", 0
 	}
 
-	queryVecJSON, err := generateEmbedding(query, activeRAG)
+	queryVecJSON, err := generateEmbeddingForSearch(query, activeRAG)
 	if err != nil {
 		return "", 0
 	}

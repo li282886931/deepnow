@@ -1,0 +1,41 @@
+<template>
+  <view v-if="visible" class="dialog-backdrop">
+    <view class="dialog">
+      <text class="dialog-title">{{ title }}</text>
+      <text class="dialog-message">{{ message }}</text>
+      <view class="dialog-actions">
+        <button class="cancel" @click="emit('cancel')">取消</button>
+        <button class="confirm" @click="emit('confirm')">{{ confirmText }}</button>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+withDefaults(defineProps<{
+  visible: boolean
+  title: string
+  message: string
+  confirmText?: string
+}>(), { confirmText: "确认删除" })
+
+const emit = defineEmits<{
+  cancel: []
+  confirm: []
+}>()
+</script>
+
+<style>
+.dialog-backdrop {
+  position: fixed; left: 0; right: 0; top: 0; bottom: 0;
+  align-items: center; justify-content: center; background-color: rgba(16, 24, 40, .45);
+  z-index: 20;
+}
+.dialog { width: 360px; max-width: calc(100% - 32px); padding: 22px; background-color: #ffffff; border-radius: 6px; }
+.dialog-title { display: block; color: #101828; font-size: 16px; font-weight: 650; }
+.dialog-message { display: block; color: #667085; font-size: 13px; line-height: 20px; margin-top: 10px; }
+.dialog-actions { flex-direction: row; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.dialog-actions button { height: 34px; line-height: 34px; margin: 0; padding: 0 13px; font-size: 12px; border-radius: 4px; }
+.cancel { color: #344054; background-color: #ffffff; border: 1px solid #d0d5dd; }
+.confirm { color: #ffffff; background-color: #d92d20; }
+</style>
