@@ -1,0 +1,148 @@
+openapi: 3.0.3
+info:
+  title: Token Factory API
+  version: 1.0.0
+  description: Application and token governance API. Secret is returned only by create and rotate.
+servers:
+  - url: http://127.0.0.1:8090
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/apps:
+    get:
+      summary: List applications
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200': { $ref: '#/components/responses/Success' }
+    post:
+      summary: Create application
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AppInput' } } } }
+      responses:
+        '201': { $ref: '#/components/responses/Success' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v1/apps/{app_id}:
+    parameters: [{ $ref: '#/components/parameters/AppID' }]
+    get:
+      summary: Get application
+      responses: { '200': { $ref: '#/components/responses/Success' }, '404': { $ref: '#/components/responses/Error' } }
+    patch:
+      summary: Update application
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AppInput' } } } }
+      responses: { '200': { $ref: '#/components/responses/Success' }, '409': { $ref: '#/components/responses/Error' } }
+  /api/v1/tokens:
+    get:
+      summary: List tokens; Secret is never returned
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+    post:
+      summary: Create token; Secret is returned once
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TokenInput' } } } }
+      responses: { '201': { $ref: '#/components/responses/Success' }, '400': { $ref: '#/components/responses/Error' }, '401': { $ref: '#/components/responses/Error' }, '403': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' }, '422': { $ref: '#/components/responses/Error' }, '429': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' }, '503': { $ref: '#/components/responses/Error' } }
+  /api/v1/tokens/{token_id}:
+    parameters: [{ $ref: '#/components/parameters/TokenID' }]
+    get:
+      summary: Get token metadata; Secret is never returned
+      responses: { '200': { $ref: '#/components/responses/Success' }, '404': { $ref: '#/components/responses/Error' } }
+  /api/v1/tokens/{token_id}/rotate:
+    post:
+      summary: Rotate token; new Secret is returned once
+      parameters: [{ $ref: '#/components/parameters/TokenID' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '200': { $ref: '#/components/responses/Success' }, '409': { $ref: '#/components/responses/Error' } }
+  /api/v1/tokens/{token_id}/revoke:
+    post:
+      summary: Revoke token
+      parameters: [{ $ref: '#/components/parameters/TokenID' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/tokens/{token_id}/extend:
+    post:
+      summary: Extend token
+      parameters: [{ $ref: '#/components/parameters/TokenID' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/tokens/{token_id}/versions:
+    get:
+      summary: List token versions
+      parameters: [{ $ref: '#/components/parameters/TokenID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/tokens/{token_id}/usage:
+    get:
+      summary: List token usage
+      parameters: [{ $ref: '#/components/parameters/TokenID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/tokens/validate:
+    post:
+      summary: Validate a token
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ValidateInput' } } } }
+      responses: { '200': { $ref: '#/components/responses/Success' }, '429': { $ref: '#/components/responses/Error' } }
+  /api/v1/approvals:
+    get:
+      summary: List approvals
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/approvals/{request_id}:
+    get:
+      summary: Get approval
+      parameters: [{ $ref: '#/components/parameters/RequestID' }]
+      responses: { '200': { $ref: '#/components/responses/Success' }, '404': { $ref: '#/components/responses/Error' } }
+  /api/v1/approvals/{request_id}/{action}:
+    post:
+      summary: Approve, reject, or return an approval
+      parameters: [{ $ref: '#/components/parameters/RequestID' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '204': { description: Action applied }, '409': { $ref: '#/components/responses/Error' } }
+  /api/v1/audit-logs:
+    get:
+      summary: List audit logs; Secret is never returned
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/risk-events:
+    get:
+      summary: List risk events
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/risk-events/{event_id}/resolve:
+    post:
+      summary: Resolve risk event
+      parameters: [{ $ref: '#/components/parameters/EventID' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '204': { description: Resolution applied } }
+  /api/v1/policies:
+    get:
+      summary: List policies
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+  /api/v1/policies/{policy_id}:
+    put:
+      summary: Update policy
+      parameters: [{ $ref: '#/components/parameters/PolicyID' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '200': { $ref: '#/components/responses/Success' } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  parameters:
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    PageSize: { name: page_size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    AppID: { name: app_id, in: path, required: true, schema: { type: string } }
+    TokenID: { name: token_id, in: path, required: true, schema: { type: string } }
+    RequestID: { name: request_id, in: path, required: true, schema: { type: string } }
+    EventID: { name: event_id, in: path, required: true, schema: { type: string } }
+    PolicyID: { name: policy_id, in: path, required: true, schema: { type: string } }
+  schemas:
+    Envelope:
+      type: object
+      required: [request_id, success, message, data]
+      properties:
+        request_id: { type: string }
+        success: { type: boolean }
+        message: { type: string }
+        data: {}
+    AppInput: { type: object, properties: { name: { type: string }, owner_id: { type: string } } }
+    TokenInput: { type: object, required: [app_id, name, expires_at], properties: { app_id: { type: string }, name: { type: string }, expires_at: { type: string, format: date-time }, scopes: { type: array, items: { type: string } } } }
+    ValidateInput: { type: object, required: [token], properties: { token: { type: string }, required_scope: { type: string } } }
+  responses:
+    Success: { description: Success, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }
+    Error: { description: Error envelope, content: { application/json: { schema: { $ref: '#/components/schemas/Envelope' } } } }

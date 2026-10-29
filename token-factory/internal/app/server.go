@@ -9,6 +9,10 @@ import (
 func NewServer(cfg Config) (*http.Server, func() error, error) {
 	mux := http.NewServeMux()
 	tokenhttp.RegisterHealthz(mux)
+	mux.Handle("/api/v1/", tokenhttp.NewRouter(tokenhttp.RouterConfig{
+		Backend:       tokenhttp.NewMemoryBackend(),
+		Authenticator: tokenhttp.LocalAuthenticator{},
+	}))
 
 	server := &http.Server{
 		Addr:    cfg.HTTPAddr,
