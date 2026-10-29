@@ -133,3 +133,26 @@ func (r *mysqlTokenRepository) ListVersions(ctx context.Context, tokenID string)
 	}
 	return versions, rows.Err()
 }
+
+func (r *mysqlTokenRepository) UpdateExpiry(ctx context.Context, tokenID string, expiresAt time.Time) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE tokens SET expires_at = ?, updated_at = ?
+		WHERE token_id = ? AND deleted_at IS NULL`, expiresAt, time.Now().UTC(), tokenID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return ErrTokenNotFoundOrStatusMismatch
+	}
+	return nil
+}
+
+func (r *mysqlTokenRepository) UpdateVersion(ctx context.Context, version TokenVersion) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE token_versions
+		SET status = ?, valid_until = ? WHERE token_id = ? AND version = ?`,
+		version.Status, version.ValidUntil, version.TokenID, version.Version)
+	return err
+}
